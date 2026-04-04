@@ -1,8 +1,10 @@
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const STORAGE_KEY = 'inference-sources';
+const THEME_KEY = 'theme-preference';
 const DEFAULT_MODEL = 'gemma4:latest';
 const DEFAULT_URL = 'http://localhost:11434';
+const RETRY_DELAY_MS = 5000;
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -55,6 +57,7 @@ function makeSource(url) {
     models: [],
     selectedModel: DEFAULT_MODEL,
     error: null,
+    retryTimer: null,
     _seq: seq,
   };
 }
@@ -100,12 +103,20 @@ function addSource(url) {
 }
 
 function removeSource(id) {
+  const source = sources.find(s => s.id === id);
+  if (source?.retryTimer) clearTimeout(source.retryTimer);
   sources = sources.filter(s => s.id !== id);
   saveSources();
   renderSources();
 }
 
 async function connectSource(source) {
+  // Cancel any pending auto-retry before starting a fresh attempt
+  if (source.retryTimer) {
+    clearTimeout(source.retryTimer);
+    source.retryTimer = null;
+  }
+
   source.status = 'connecting';
   source.error = null;
   updateCard(source);
@@ -127,6 +138,13 @@ async function connectSource(source) {
   } catch (err) {
     source.status = 'error';
     source.error = err.message;
+
+    // Auto-retry so a transient failure (server not yet ready, network blip)
+    // resolves without requiring a manual page refresh.
+    source.retryTimer = setTimeout(() => {
+      source.retryTimer = null;
+      if (sources.includes(source)) connectSource(source);
+    }, RETRY_DELAY_MS);
   }
 
   updateCard(source);
@@ -277,9 +295,47 @@ function hideModalError() {
   document.getElementById('modal-error').classList.add('hidden');
 }
 
+// ─── Theme ────────────────────────────────────────────────────────────────────
+
+function initTheme() {
+  const saved = localStorage.getItem(THEME_KEY);
+  if (saved) document.documentElement.setAttribute('data-theme', saved);
+  syncThemeButton();
+
+  // Keep button label in sync when the OS theme changes (only matters when
+  // no explicit preference is saved — otherwise the attribute overrides).
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (!localStorage.getItem(THEME_KEY)) syncThemeButton();
+  });
+}
+
+function toggleTheme() {
+  const next = effectiveTheme() === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem(THEME_KEY, next);
+  syncThemeButton();
+}
+
+function effectiveTheme() {
+  return (
+    document.documentElement.getAttribute('data-theme') ??
+    (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+  );
+}
+
+function syncThemeButton() {
+  const btn = document.getElementById('theme-toggle');
+  if (!btn) return;
+  const isDark = effectiveTheme() === 'dark';
+  btn.textContent = isDark ? '☀' : '☾';
+  btn.title = isDark ? 'Switch to light mode' : 'Switch to dark mode';
+  btn.setAttribute('aria-label', btn.title);
+}
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 function init() {
+  initTheme();
   loadSources();
   renderSources();
 
@@ -287,6 +343,9 @@ function init() {
   for (const source of sources) {
     connectSource(source);
   }
+
+  // Theme toggle
+  document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
 
   // Toolbar
   document.getElementById('add-source-btn').addEventListener('click', showModal);
