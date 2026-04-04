@@ -38,6 +38,19 @@ Meetings run through a queue-based scheduler in `public/app.js`.
 - Token flow records stream start/end boundaries plus aggregated reasoning/output traces.
 - Facilitator context combines agenda, summary, working memory, attachments, board notes, transcript tail, and draft boards.
 
+## Pipeline Streaming and Recovery
+
+The multiphase lab uses a split-channel stream contract:
+
+- `thinking` deltas are stored and rendered in a hidden-by-default reasoning panel
+- `output` deltas are streamed directly into the visible response surface
+- the canonical stored phase record is rebuilt once from the final buffers so repeated reasoning tags never leak into the user-facing stream
+
+Before a run starts, the server primes each unique `(sourceUrl, model)` pair.
+If a phase fails with a timeout-like transport error, the runner emits a retry
+event, re-primes that same target, and retries the phase once. This keeps the
+pipeline resilient to cold Ollama models without silently looping forever.
+
 ## Extension Guidance
 
 When adding new autonomous workflows:

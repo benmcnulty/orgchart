@@ -48,8 +48,10 @@ Paper dolls for corporate theater — disposable, interchangeable, surprisingly 
 ### Multiphase Lab
 - **Four-phase pipeline** — Optimizer → Generator → Critic → Synthesizer
 - **Capacity-aware routing** — phases assigned to sources by hardware tier
-- **Streaming display** — tokens stream live into phase cards as they arrive
-- **Thinking panels** — full chain-of-thought visibility per phase, collapsed by default
+- **Streaming display** — visible output streams cleanly without duplicated reasoning tags
+- **Thinking panels** — full reasoning traces stay available per phase, hidden by default while they stream
+- **Endpoint priming** — selected models are pre-warmed before execution to reduce cold-start timeouts
+- **Self-healing retries** — timeout-like phase failures trigger a warm-up pass and one automatic retry
 - **Run documentation** — synthesizer appends a structured improvement log
 - **Retry from failure** — resume pipeline from a failed phase without rerunning earlier work
 - **Export as JSON** — full `PipelineRun` record for offline analysis
@@ -132,6 +134,9 @@ Phase 4: Synthesizer ── final revised output + run documentation block
 ```
 
 Thinking blocks are stripped between phases. Only clean content passes forward.
+Before a run starts, the server primes each unique `(source, model)` pair once.
+If a phase still fails with a timeout-like transport error, the runner re-primes
+that model and retries the phase a single time before surfacing an error.
 
 ---
 

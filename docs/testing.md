@@ -15,6 +15,7 @@ The automated suite focuses on the highest-risk logic that does not require a br
 - structured `<thought>` / `<think>` parsing
 - chat parser handling for streamed reasoning tags
 - server-side proxy and stream payload validation
+- multiphase pipeline primer deduplication, timeout retry policy, and split thinking/output stream handling
 
 ## Recommended Review Workflow
 
@@ -27,6 +28,7 @@ The automated suite focuses on the highest-risk logic that does not require a br
    - meeting auto mode
    - draft-board planning/revision
    - import/export snapshot flow
+   - multiphase lab warm-up status, hidden reasoning panels, and retry-from-timeout behavior
 
 ## Future Expansion
 
