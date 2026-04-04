@@ -1,5 +1,6 @@
 import { readFileSync, existsSync } from 'fs';
 import { join, extname } from 'path';
+import { runPipeline } from './lib/pipeline-runner.js';
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const PUBLIC_DIR = join(import.meta.dir, 'public');
@@ -136,6 +137,64 @@ function json(data, status = 200) {
   });
 }
 
+// ─── Pipeline SSE Endpoint ───────────────────────────────────────────────────
+// POST /api/pipeline/run
+//
+// Accepts { userInput, phaseOverrides? } and streams pipeline progress back as
+// Server-Sent Events. Each event is a JSON-encoded object on a `data:` line.
+//
+// SSE event types: phase_start | chunk | phase_complete | pipeline_complete | error
+// See lib/pipeline-runner.js for the full event schema.
+
+async function handlePipelineRun(req) {
+  let body;
+  try {
+    body = await req.json();
+  } catch {
+    return json({ error: 'Invalid request body' }, 400);
+  }
+
+  const userInput = typeof body.userInput === 'string' ? body.userInput.trim() : '';
+  if (!userInput) return json({ error: 'userInput is required' }, 400);
+
+  const phaseOverrides = body.phaseOverrides ?? {};
+  const requestId = nextRequestSeq++;
+  console.log(`[pipeline ${requestId}] start input_len=${userInput.length}`);
+
+  // Build a ReadableStream that emits SSE events as the pipeline progresses
+  const stream = new ReadableStream({
+    async start(controller) {
+      const enc = new TextEncoder();
+
+      const send = event => {
+        try {
+          controller.enqueue(enc.encode(`data: ${JSON.stringify(event)}\n\n`));
+        } catch { /* client disconnected */ }
+      };
+
+      try {
+        await runPipeline(userInput, phaseOverrides, send);
+        console.log(`[pipeline ${requestId}] complete`);
+      } catch (err) {
+        console.error(`[pipeline ${requestId}] fatal`, err.message);
+        send({ type: 'error', phase: null, message: err.message });
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no', // Disable nginx buffering for SSE
+    },
+  });
+}
+
 export function appFetch(req) {
   const url = new URL(req.url);
 
@@ -145,6 +204,10 @@ export function appFetch(req) {
 
   if (url.pathname === '/api/stream' && req.method === 'POST') {
     return handleStream(req, url);
+  }
+
+  if (url.pathname === '/api/pipeline/run' && req.method === 'POST') {
+    return handlePipelineRun(req);
   }
 
   return handleStatic(url.pathname);
