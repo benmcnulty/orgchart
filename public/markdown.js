@@ -39,7 +39,7 @@ function renderMarkdown(text) {
     if (!line.trim()) { i++; continue; }
 
     // ATX headers (# through ######)
-    const hm = /^(#{1,6}) (.+)/.exec(line);
+    const hm = /^(#{1,6})\s+(.+)$/.exec(line);
     if (hm) {
       const h = document.createElement(`h${hm[1].length}`);
       inlineInto(h, hm[2]);
@@ -135,56 +135,88 @@ function inlineInto(parent, text) {
 // Uses matchAll() for safe iteration over all inline pattern matches.
 function inlineSegment(parent, text) {
   if (!text) return;
+  let plain = '';
+  let i = 0;
 
-  // Patterns ordered longest/most-specific first to avoid partial matches.
-  // Inline code must come before bold/italic so backtick content is protected.
-  const INLINE = /(`[^`\n]+`|\*\*[^*\n]+\*\*|__[^_\n]+__|~~[^~\n]+~~|\*[^*\n]+\*|_[^_\n]+_|\[([^\]]+)\]\(([^)]+)\))/g;
-
-  let last = 0;
-
-  for (const m of text.matchAll(INLINE)) {
-    if (m.index > last) {
-      parent.appendChild(document.createTextNode(text.slice(last, m.index)));
+  while (i < text.length) {
+    const token = parseInlineToken(text, i);
+    if (!token) {
+      plain += text[i];
+      i++;
+      continue;
     }
 
-    const raw = m[0];
+    if (plain) {
+      parent.appendChild(document.createTextNode(plain));
+      plain = '';
+    }
 
-    if (raw.startsWith('`')) {
+    parent.appendChild(token.node);
+    i = token.end;
+  }
+
+  if (plain) parent.appendChild(document.createTextNode(plain));
+}
+
+function parseInlineToken(text, start) {
+  if (text.startsWith('`', start)) {
+    const end = text.indexOf('`', start + 1);
+    if (end > start + 1) {
       const code = document.createElement('code');
-      code.textContent = raw.slice(1, -1);
-      parent.appendChild(code);
-    } else if (raw.startsWith('**') || raw.startsWith('__')) {
-      const strong = document.createElement('strong');
-      strong.textContent = raw.slice(2, -2);
-      parent.appendChild(strong);
-    } else if (raw.startsWith('~~')) {
-      const s = document.createElement('s');
-      s.textContent = raw.slice(2, -2);
-      parent.appendChild(s);
-    } else if (raw.startsWith('*') || raw.startsWith('_')) {
-      const em = document.createElement('em');
-      em.textContent = raw.slice(1, -1);
-      parent.appendChild(em);
-    } else if (raw.startsWith('[')) {
-      const label = m[2];
-      const href = m[3];
-      if (/^https?:\/\//i.test(href)) {
-        const a = document.createElement('a');
-        a.href = href;
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        a.textContent = label;
-        parent.appendChild(a);
-      } else {
-        // Non-http/https URLs render as plain text (no clickable links)
-        parent.appendChild(document.createTextNode(raw));
+      code.textContent = text.slice(start + 1, end);
+      return { node: code, end: end + 1 };
+    }
+  }
+
+  if (text.startsWith('[', start)) {
+    const closeLabel = text.indexOf(']', start + 1);
+    if (closeLabel !== -1 && text[closeLabel + 1] === '(') {
+      const closeHref = text.indexOf(')', closeLabel + 2);
+      if (closeHref !== -1) {
+        const label = text.slice(start + 1, closeLabel);
+        const href = text.slice(closeLabel + 2, closeHref);
+        if (/^https?:\/\//i.test(href)) {
+          const a = document.createElement('a');
+          a.href = href;
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+          inlineSegment(a, label);
+          return { node: a, end: closeHref + 1 };
+        }
       }
     }
-
-    last = m.index + raw.length;
   }
 
-  if (last < text.length) {
-    parent.appendChild(document.createTextNode(text.slice(last)));
+  for (const marker of ['**', '__', '~~']) {
+    if (!text.startsWith(marker, start)) continue;
+    const end = findClosingMarker(text, marker, start + marker.length);
+    if (end === -1) continue;
+
+    const tag = marker === '~~' ? 's' : 'strong';
+    const node = document.createElement(tag);
+    inlineSegment(node, text.slice(start + marker.length, end));
+    return { node, end: end + marker.length };
   }
+
+  for (const marker of ['*', '_']) {
+    if (!text.startsWith(marker, start)) continue;
+    const end = findClosingMarker(text, marker, start + 1);
+    if (end === -1) continue;
+
+    const node = document.createElement('em');
+    inlineSegment(node, text.slice(start + 1, end));
+    return { node, end: end + 1 };
+  }
+
+  return null;
+}
+
+function findClosingMarker(text, marker, from) {
+  let idx = from;
+  while ((idx = text.indexOf(marker, idx)) !== -1) {
+    const inner = text.slice(from, idx);
+    if (/\S/.test(inner)) return idx;
+    idx += marker.length;
+  }
+  return -1;
 }

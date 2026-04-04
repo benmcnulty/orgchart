@@ -21,7 +21,9 @@
     <main class="app-main">
       <!-- Both panels are built and mounted here by app.js -->
       <div id="panel-sources-mount"></div>
+      <div id="panel-persona-mount"></div>
       <div id="panel-chat-mount"></div>
+      <div id="panel-group-chat-mount"></div>
     </main>
 
     <!-- Add Source Modal (static HTML — toggled by app.js) -->
@@ -49,11 +51,13 @@
 
     <!--
       Script order matters:
-        1. markdown.js  — renderMarkdown() global, no dependencies
-        2. chat.js      — chat UI, depends on renderMarkdown + app.js globals
-        3. app.js       — sources state, panels, calls chatInit() at end of init()
+        1. markdown.js          — renderMarkdown() global, no dependencies
+        2. inference-policy.js  — shared Gemma/Ollama prompt policy helpers
+        3. chat.js              — chat UI, depends on renderMarkdown + app.js globals
+        4. app.js               — sources state, panels, calls chatInit() at end of init()
     -->
     <script src="markdown.js"></script>
+    <script src="inference-policy.js"></script>
     <script src="chat.js"></script>
     <script src="app.js"></script>
   </body>

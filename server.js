@@ -3,6 +3,7 @@ import { join, extname } from 'path';
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const PUBLIC_DIR = join(import.meta.dir, 'public');
+let nextRequestSeq = 1;
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -14,11 +15,40 @@ const MIME_TYPES = {
 
 // Proxy an Ollama API call through the server to avoid CORS issues with LAN sources.
 // Only GET is needed for the initial phase (model listing / health checks).
-async function handleProxy(url) {
-  const targetUrl = url.searchParams.get('url');
-  if (!targetUrl) {
-    return json({ error: 'Missing url parameter' }, 400);
+export function validateProxyTarget(rawUrl) {
+  if (!rawUrl) return { error: 'Missing url parameter' };
+  try {
+    const target = new URL(rawUrl);
+    if (!['http:', 'https:'].includes(target.protocol)) {
+      return { error: 'Only http and https targets are allowed' };
+    }
+    return { targetUrl: target.toString() };
+  } catch {
+    return { error: 'Invalid target URL' };
   }
+}
+
+export function validateStreamPayload(body) {
+  if (!body || typeof body !== 'object') return { error: 'Invalid request body' };
+  if (!body.model || typeof body.model !== 'string') return { error: 'Missing model in request body' };
+  if (!Array.isArray(body.messages) || body.messages.length === 0) return { error: 'Missing messages in request body' };
+  return { ok: true };
+}
+
+function logStreamEvent(id, stage, meta = {}) {
+  const detail = Object.entries(meta)
+    .filter(([, value]) => value !== undefined && value !== null && value !== '')
+    .map(([key, value]) => `${key}=${String(value).replace(/\s+/g, ' ')}`)
+    .join(' ');
+  console.log(`[stream ${id}] ${stage}${detail ? ` ${detail}` : ''}`);
+}
+
+async function handleProxy(url) {
+  const validation = validateProxyTarget(url.searchParams.get('url'));
+  if (validation.error) {
+    return json({ error: validation.error }, 400);
+  }
+  const { targetUrl } = validation;
 
   try {
     const response = await fetch(targetUrl, {
@@ -39,8 +69,9 @@ async function handleProxy(url) {
 // Pipes the upstream NDJSON body directly without buffering so the client
 // sees tokens as they arrive.
 async function handleStream(req, url) {
-  const targetUrl = url.searchParams.get('url');
-  if (!targetUrl) return json({ error: 'Missing url parameter' }, 400);
+  const validation = validateProxyTarget(url.searchParams.get('url'));
+  if (validation.error) return json({ error: validation.error }, 400);
+  const { targetUrl } = validation;
 
   let body;
   try {
@@ -48,6 +79,12 @@ async function handleStream(req, url) {
   } catch {
     return json({ error: 'Invalid request body' }, 400);
   }
+  const payloadValidation = validateStreamPayload(body);
+  if (payloadValidation.error) return json({ error: payloadValidation.error }, 400);
+
+  const requestId = nextRequestSeq++;
+  const startedAt = Date.now();
+  logStreamEvent(requestId, 'start', { target: targetUrl, model: body.model, messages: body.messages.length });
 
   try {
     const upstream = await fetch(targetUrl, {
@@ -59,16 +96,20 @@ async function handleStream(req, url) {
 
     if (!upstream.ok) {
       const text = await upstream.text().catch(() => `HTTP ${upstream.status}`);
+      logStreamEvent(requestId, 'upstream_error', { status: upstream.status, duration_ms: Date.now() - startedAt });
       return json({ error: text }, upstream.status);
     }
 
     // Pipe the readable stream directly — no buffering.
-    return new Response(upstream.body, {
+    const response = new Response(upstream.body, {
       status: 200,
       headers: { 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-cache' },
     });
+    logStreamEvent(requestId, 'streaming', { duration_ms: Date.now() - startedAt });
+    return response;
   } catch (err) {
     const message = err.name === 'TimeoutError' ? 'Connection timed out' : err.message;
+    logStreamEvent(requestId, 'failed', { error: message, duration_ms: Date.now() - startedAt });
     return json({ error: message }, 502);
   }
 }
@@ -95,22 +136,26 @@ function json(data, status = 200) {
   });
 }
 
-const server = Bun.serve({
-  port: PORT,
-  async fetch(req) {
-    const url = new URL(req.url);
+export function appFetch(req) {
+  const url = new URL(req.url);
 
-    if (url.pathname === '/api/proxy') {
-      return handleProxy(url);
-    }
+  if (url.pathname === '/api/proxy') {
+    return handleProxy(url);
+  }
 
-    if (url.pathname === '/api/stream' && req.method === 'POST') {
-      return handleStream(req, url);
-    }
+  if (url.pathname === '/api/stream' && req.method === 'POST') {
+    return handleStream(req, url);
+  }
 
-    return handleStatic(url.pathname);
-  },
-});
+  return handleStatic(url.pathname);
+}
 
-console.log(`\n  Distributed Inference Dashboard`);
-console.log(`  → http://localhost:${server.port}\n`);
+if (import.meta.main) {
+  const server = Bun.serve({
+    port: PORT,
+    fetch: appFetch,
+  });
+
+  console.log(`\n  Distributed Inference Dashboard`);
+  console.log(`  → http://localhost:${server.port}\n`);
+}
