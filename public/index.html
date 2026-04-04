@@ -19,20 +19,14 @@
     </header>
 
     <main class="app-main">
-      <div class="sources-toolbar">
-        <h2 class="section-title">Inference Sources</h2>
-        <button id="add-source-btn" class="btn-add" title="Add inference source">
-          <span>+</span>
-        </button>
-      </div>
-
-      <div id="sources-container" class="sources-container">
-        <!-- Source cards are rendered here by app.js -->
-      </div>
+      <!-- Both panels are built and mounted here by app.js -->
+      <div id="panel-sources-mount"></div>
+      <div id="panel-chat-mount"></div>
     </main>
 
-    <!-- Add Source Modal -->
-    <div id="add-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <!-- Add Source Modal (static HTML — toggled by app.js) -->
+    <div id="add-modal" class="modal-backdrop hidden"
+         role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <div class="modal">
         <h3 id="modal-title" class="modal-title">Add Inference Source</h3>
         <p class="modal-hint">Enter the base URL of an Ollama API server on your network.</p>
@@ -53,6 +47,14 @@
       </div>
     </div>
 
+    <!--
+      Script order matters:
+        1. markdown.js  — renderMarkdown() global, no dependencies
+        2. chat.js      — chat UI, depends on renderMarkdown + app.js globals
+        3. app.js       — sources state, panels, calls chatInit() at end of init()
+    -->
+    <script src="markdown.js"></script>
+    <script src="chat.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

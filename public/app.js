@@ -1,3 +1,7 @@
+// app.js — Sources management, panel layout, theme.
+// Loaded last; app globals (sources, displayLabel, defaultSource) are
+// accessible to chat.js via the shared global scope.
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const STORAGE_KEY = 'inference-sources';
@@ -8,7 +12,6 @@ const RETRY_DELAY_MS = 5000;
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
-/** @type {Array<{id: string, url: string, status: string, models: string[], selectedModel: string, error: string|null, _seq: number}>} */
 let sources = [];
 let nextSeq = 1;
 
@@ -21,9 +24,15 @@ function loadSources() {
       const parsed = JSON.parse(saved);
       sources = parsed.map(s => ({
         ...s,
+        // Runtime-only fields reset on load
         status: 'connecting',
         models: [],
         error: null,
+        retryTimer: null,
+        // Provide fallbacks for fields added after initial release
+        label: s.label ?? '',
+        isDefault: s.isDefault ?? false,
+        enabled: s.enabled ?? true,
       }));
       nextSeq = Math.max(...sources.map(s => s._seq ?? 0)) + 1;
     }
@@ -37,16 +46,14 @@ function loadSources() {
 }
 
 function saveSources() {
-  const persist = sources.map(({ id, url, selectedModel, _seq }) => ({
-    id,
-    url,
-    selectedModel,
-    _seq,
+  const persist = sources.map(({ id, url, selectedModel, label, isDefault, enabled, _seq }) => ({
+    id, url, selectedModel, label, isDefault, enabled, _seq,
   }));
   localStorage.setItem(STORAGE_KEY, JSON.stringify(persist));
+  notifySources();
 }
 
-// ─── Source Factory ───────────────────────────────────────────────────────────
+// ─── Source Helpers ───────────────────────────────────────────────────────────
 
 function makeSource(url) {
   const seq = nextSeq++;
@@ -58,6 +65,9 @@ function makeSource(url) {
     selectedModel: DEFAULT_MODEL,
     error: null,
     retryTimer: null,
+    label: '',
+    isDefault: false,
+    enabled: true,
     _seq: seq,
   };
 }
@@ -65,6 +75,32 @@ function makeSource(url) {
 function normalizeUrl(url) {
   const trimmed = url.trim().replace(/\/$/, '');
   return trimmed.startsWith('http') ? trimmed : `http://${trimmed}`;
+}
+
+// Returns the display label for a source — used in cards and chat selector.
+function displayLabel(source) {
+  if (source.label) return source.label;
+  try {
+    const host = new URL(source.url).hostname;
+    if (host === 'localhost' || host === '127.0.0.1') return 'Local';
+    return host;
+  } catch {
+    return source.url;
+  }
+}
+
+// Returns the explicit default source, or the first enabled source, or null.
+function defaultSource() {
+  return enabledSources().find(s => s.isDefault) ?? enabledSources()[0] ?? null;
+}
+
+function enabledSources() {
+  return sources.filter(s => s.enabled);
+}
+
+// Fires the 'sources-changed' event so chat.js can refresh its selector.
+function notifySources() {
+  document.dispatchEvent(new CustomEvent('sources-changed', { detail: { sources } }));
 }
 
 // ─── API ──────────────────────────────────────────────────────────────────────
@@ -89,11 +125,9 @@ async function fetchModels(baseUrl) {
 
 function addSource(url) {
   const normalized = normalizeUrl(url);
-
   if (sources.some(s => s.url === normalized)) {
     return { error: 'This source is already configured.' };
   }
-
   const source = makeSource(normalized);
   sources.push(source);
   saveSources();
@@ -111,23 +145,17 @@ function removeSource(id) {
 }
 
 async function connectSource(source) {
-  // Cancel any pending auto-retry before starting a fresh attempt
-  if (source.retryTimer) {
-    clearTimeout(source.retryTimer);
-    source.retryTimer = null;
-  }
+  if (source.retryTimer) { clearTimeout(source.retryTimer); source.retryTimer = null; }
 
   source.status = 'connecting';
   source.error = null;
-  updateCard(source);
+  patchCardStatus(source);
 
   try {
     const models = await fetchModels(source.url);
     source.models = models;
     source.status = 'connected';
 
-    // Prefer DEFAULT_MODEL if available; otherwise keep existing selection if valid,
-    // else fall back to first model in the list.
     if (models.includes(DEFAULT_MODEL)) {
       source.selectedModel = DEFAULT_MODEL;
     } else if (!models.includes(source.selectedModel) && models.length > 0) {
@@ -139,21 +167,66 @@ async function connectSource(source) {
     source.status = 'error';
     source.error = err.message;
 
-    // Auto-retry so a transient failure (server not yet ready, network blip)
-    // resolves without requiring a manual page refresh.
     source.retryTimer = setTimeout(() => {
       source.retryTimer = null;
       if (sources.includes(source)) connectSource(source);
     }, RETRY_DELAY_MS);
   }
 
-  updateCard(source);
+  patchCardStatus(source);
 }
 
-// ─── Rendering ────────────────────────────────────────────────────────────────
+// ─── Panel Builder ────────────────────────────────────────────────────────────
+
+// Creates a collapsible panel. Returns { panel, body, actions } so the caller
+// can populate the body and add header action buttons.
+function createPanel(id, title) {
+  const panel = document.createElement('div');
+  panel.className = 'panel';
+  panel.id = id;
+
+  const header = document.createElement('div');
+  header.className = 'panel-header';
+
+  // The toggle button wraps only the chevron + title — action buttons sit
+  // outside it as siblings to avoid invalid nested-button HTML.
+  const toggle = document.createElement('button');
+  toggle.className = 'panel-toggle';
+  toggle.setAttribute('aria-expanded', 'true');
+  toggle.setAttribute('aria-controls', `${id}-body`);
+
+  const chevron = document.createElement('span');
+  chevron.className = 'panel-chevron';
+  chevron.textContent = '▾';
+
+  const titleSpan = document.createElement('span');
+  titleSpan.className = 'panel-title';
+  titleSpan.textContent = title;
+
+  toggle.append(chevron, titleSpan);
+  toggle.addEventListener('click', () => {
+    const collapsed = panel.classList.toggle('panel--collapsed');
+    toggle.setAttribute('aria-expanded', String(!collapsed));
+  });
+
+  const actions = document.createElement('div');
+  actions.className = 'panel-header-actions';
+
+  header.append(toggle, actions);
+
+  const body = document.createElement('div');
+  body.className = 'panel-body';
+  body.id = `${id}-body`;
+
+  panel.append(header, body);
+  return { panel, body, actions };
+}
+
+// ─── Card Rendering ───────────────────────────────────────────────────────────
 
 function renderSources() {
   const container = document.getElementById('sources-container');
+  if (!container) return;
 
   if (sources.length === 0) {
     const p = document.createElement('p');
@@ -166,43 +239,63 @@ function renderSources() {
   container.replaceChildren(...sources.map(buildCard));
 }
 
-/** Build a source card entirely via DOM methods — no innerHTML for user-supplied values. */
+// Full card build — only called on initial render or source list changes.
+// Status-only changes use patchCardStatus() to preserve label input focus.
 function buildCard(source) {
   const card = document.createElement('div');
-  card.className = 'source-card';
+  card.className = `source-card${source.enabled ? '' : ' source-card--disabled'}`;
   card.id = `card-${source.id}`;
 
-  // ── Header ──
+  // ── Header: status + actions ──────────────────────────────────────────────
   const header = el('div', 'card-header');
 
   const statusGroup = el('div', 'status-group');
   const dot = el('span', `status-dot ${source.status}`);
   const statusLabel = el('span', 'status-label');
-  const STATUS_LABELS = { connecting: 'Connecting…', connected: 'Connected', error: 'Error' };
-  statusLabel.textContent = STATUS_LABELS[source.status] ?? source.status;
+  statusLabel.textContent = statusText(source.status);
   statusGroup.append(dot, statusLabel);
 
   const actions = el('div', 'card-actions');
+
+  const btnStar = el('button', `btn-icon btn-star${source.isDefault ? ' btn-star-active' : ''}`);
+  btnStar.textContent = source.isDefault ? '★' : '☆';
+  btnStar.title = source.isDefault ? 'Clear default' : 'Set as default';
+
+  const btnToggle = el('button', `btn-icon btn-toggle${source.enabled ? ' btn-toggle-active' : ''}`);
+  btnToggle.textContent = source.enabled ? '●' : '○';
+  btnToggle.title = source.enabled ? 'Disable source' : 'Enable source';
+
   const btnRefresh = el('button', 'btn-icon btn-refresh');
   btnRefresh.title = 'Reconnect';
   btnRefresh.textContent = '↻';
+
   const btnRemove = el('button', 'btn-icon btn-remove');
   btnRemove.title = 'Remove source';
   btnRemove.textContent = '×';
-  actions.append(btnRefresh, btnRemove);
 
+  actions.append(btnStar, btnToggle, btnRefresh, btnRemove);
   header.append(statusGroup, actions);
 
-  // ── URL ──
+  // ── Editable label ────────────────────────────────────────────────────────
+  const labelRow = el('div', 'card-label-row');
+  const labelInput = document.createElement('input');
+  labelInput.type = 'text';
+  labelInput.className = 'card-label-input';
+  labelInput.setAttribute('data-field', 'label');
+  labelInput.value = source.label;
+  labelInput.placeholder = displayLabel(source); // show auto-label as hint
+  labelInput.setAttribute('aria-label', 'Source label');
+  labelRow.appendChild(labelInput);
+
+  // ── URL display ───────────────────────────────────────────────────────────
   const urlEl = el('div', 'card-url');
   urlEl.textContent = source.url;
 
-  // ── Model row ──
+  // ── Model selector ────────────────────────────────────────────────────────
   const modelRow = el('div', 'card-model');
-
   const select = document.createElement('select');
   select.className = 'model-select';
-  select.disabled = source.status !== 'connected';
+  select.disabled = source.status !== 'connected' || !source.enabled;
 
   const modelSet = source.models.length > 0 ? source.models : [source.selectedModel];
   for (const name of modelSet) {
@@ -214,40 +307,110 @@ function buildCard(source) {
   }
 
   const meta = el('span', `model-count${source.status === 'error' ? ' error' : ''}`);
-  if (source.status === 'error') {
-    meta.textContent = source.error ?? 'Connection failed';
-  } else if (source.status === 'connected') {
-    meta.textContent = `${source.models.length} model${source.models.length !== 1 ? 's' : ''} available`;
-  } else {
-    meta.textContent = 'Fetching models…';
-  }
+  meta.textContent = metaText(source);
 
   modelRow.append(select, meta);
 
-  // ── Wire events ──
+  // ── Event wiring ──────────────────────────────────────────────────────────
+  btnStar.addEventListener('click', () => {
+    const wasDefault = source.isDefault;
+    sources.forEach(s => { s.isDefault = false; });
+    if (!wasDefault) source.isDefault = true;
+    saveSources();
+    sources.forEach(s => patchCardStatus(s));
+  });
+
+  btnToggle.addEventListener('click', () => {
+    source.enabled = !source.enabled;
+    if (!source.enabled && source.isDefault) source.isDefault = false;
+    saveSources();
+    patchCardStatus(source);
+  });
+
   btnRefresh.addEventListener('click', () => connectSource(source));
   btnRemove.addEventListener('click', () => removeSource(source.id));
+
+  labelInput.addEventListener('input', () => {
+    source.label = labelInput.value; // preserve spaces during typing
+    labelInput.placeholder = source.label.trim() ? '' : displayLabel(source);
+    saveSources();
+  });
+  labelInput.addEventListener('blur', () => {
+    source.label = labelInput.value.trim();
+    saveSources();
+  });
+
   select.addEventListener('change', e => {
     source.selectedModel = e.target.value;
     saveSources();
   });
 
-  card.append(header, urlEl, modelRow);
+  card.append(header, labelRow, urlEl, modelRow);
   return card;
 }
 
-/** Patch an existing card in-place; falls back to full re-render if card not found. */
-function updateCard(source) {
-  const existing = document.getElementById(`card-${source.id}`);
-  if (!existing) {
-    renderSources();
-    return;
+// Patches only the dynamic parts of an existing card without touching the
+// label input, so typing in the label field is never interrupted by a
+// background status update (e.g. connectSource completing).
+function patchCardStatus(source) {
+  const card = document.getElementById(`card-${source.id}`);
+  if (!card) { renderSources(); return; }
+
+  card.classList.toggle('source-card--disabled', !source.enabled);
+
+  const dot = card.querySelector('.status-dot');
+  if (dot) dot.className = `status-dot ${source.status}`;
+
+  const label = card.querySelector('.status-label');
+  if (label) label.textContent = statusText(source.status);
+
+  const btnStar = card.querySelector('.btn-star');
+  if (btnStar) {
+    btnStar.textContent = source.isDefault ? '★' : '☆';
+    btnStar.title = source.isDefault ? 'Clear default' : 'Set as default';
+    btnStar.classList.toggle('btn-star-active', source.isDefault);
   }
-  const updated = buildCard(source);
-  existing.replaceWith(updated);
+
+  const btnToggle = card.querySelector('.btn-toggle');
+  if (btnToggle) {
+    btnToggle.textContent = source.enabled ? '●' : '○';
+    btnToggle.title = source.enabled ? 'Disable source' : 'Enable source';
+    btnToggle.classList.toggle('btn-toggle-active', source.enabled);
+  }
+
+  const select = card.querySelector('.model-select');
+  if (select) {
+    select.disabled = source.status !== 'connected' || !source.enabled;
+    const modelSet = source.models.length > 0 ? source.models : [source.selectedModel];
+    const existing = Array.from(select.options).map(o => o.value);
+    if (JSON.stringify(modelSet) !== JSON.stringify(existing)) {
+      select.replaceChildren(...modelSet.map(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        opt.selected = name === source.selectedModel;
+        return opt;
+      }));
+    }
+  }
+
+  const metaEl = card.querySelector('.model-count');
+  if (metaEl) {
+    metaEl.className = `model-count${source.status === 'error' ? ' error' : ''}`;
+    metaEl.textContent = metaText(source);
+  }
 }
 
-/** Shorthand for creating an element with a class name. */
+function statusText(status) {
+  return { connecting: 'Connecting…', connected: 'Connected', error: 'Error' }[status] ?? status;
+}
+
+function metaText(source) {
+  if (source.status === 'error') return source.error ?? 'Connection failed';
+  if (source.status === 'connected') return `${source.models.length} model${source.models.length !== 1 ? 's' : ''} available`;
+  return 'Fetching models…';
+}
+
 function el(tag, className) {
   const node = document.createElement(tag);
   node.className = className;
@@ -257,9 +420,8 @@ function el(tag, className) {
 // ─── Modal ────────────────────────────────────────────────────────────────────
 
 function showModal() {
-  const modal = document.getElementById('add-modal');
+  document.getElementById('add-modal').classList.remove('hidden');
   const input = document.getElementById('source-url');
-  modal.classList.remove('hidden');
   input.value = '';
   hideModalError();
   input.focus();
@@ -271,17 +433,9 @@ function hideModal() {
 
 function confirmModal() {
   const url = document.getElementById('source-url').value.trim();
-  if (!url) {
-    showModalError('Please enter a URL.');
-    return;
-  }
-
+  if (!url) { showModalError('Please enter a URL.'); return; }
   const result = addSource(url);
-  if (result.error) {
-    showModalError(result.error);
-    return;
-  }
-
+  if (result.error) { showModalError(result.error); return; }
   hideModal();
 }
 
@@ -301,9 +455,6 @@ function initTheme() {
   const saved = localStorage.getItem(THEME_KEY);
   if (saved) document.documentElement.setAttribute('data-theme', saved);
   syncThemeButton();
-
-  // Keep button label in sync when the OS theme changes (only matters when
-  // no explicit preference is saved — otherwise the attribute overrides).
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
     if (!localStorage.getItem(THEME_KEY)) syncThemeButton();
   });
@@ -337,9 +488,32 @@ function syncThemeButton() {
 function init() {
   initTheme();
   loadSources();
+
+  // ── Sources panel ─────────────────────────────────────────────────────────
+  const { panel: sourcesPanel, body: sourcesBody, actions: sourcesActions } = createPanel('panel-sources', 'Inference Sources');
+
+  const btnAdd = document.createElement('button');
+  btnAdd.id = 'add-source-btn';
+  btnAdd.className = 'btn-add';
+  btnAdd.title = 'Add inference source';
+  btnAdd.textContent = '+';
+  btnAdd.addEventListener('click', showModal);
+  sourcesActions.appendChild(btnAdd);
+
+  const container = document.createElement('div');
+  container.id = 'sources-container';
+  container.className = 'sources-container';
+  sourcesBody.appendChild(container);
+
+  document.getElementById('panel-sources-mount').appendChild(sourcesPanel);
   renderSources();
 
-  // Kick off connection attempts for all persisted sources
+  // ── Chat panel ────────────────────────────────────────────────────────────
+  const { panel: chatPanel, body: chatBody } = createPanel('panel-chat', 'Chat');
+  document.getElementById('panel-chat-mount').appendChild(chatPanel);
+  chatInit(chatBody); // defined in chat.js
+
+  // Kick off connection attempts for all loaded sources
   for (const source of sources) {
     connectSource(source);
   }
@@ -347,10 +521,7 @@ function init() {
   // Theme toggle
   document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
 
-  // Toolbar
-  document.getElementById('add-source-btn').addEventListener('click', showModal);
-
-  // Modal buttons and keyboard shortcuts
+  // Modal
   document.getElementById('modal-cancel').addEventListener('click', hideModal);
   document.getElementById('modal-confirm').addEventListener('click', confirmModal);
   document.getElementById('source-url').addEventListener('keydown', e => {
