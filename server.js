@@ -219,6 +219,6 @@ if (import.meta.main) {
     fetch: appFetch,
   });
 
-  console.log(`\n  Distributed Inference Dashboard`);
+  console.log(`\n  OrgChart: Paper Dolls for Corporate Theater`);
   console.log(`  → http://localhost:${server.port}\n`);
 }

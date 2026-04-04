@@ -1,4 +1,6 @@
-# Testing Notes
+# OrgChart: Paper Dolls for Corporate Theater — Testing Notes
+
+MIT License © 2026 Ben McNulty
 
 ## Commands
 

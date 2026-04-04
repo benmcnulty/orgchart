@@ -1,4 +1,6 @@
-# Repository Guidelines
+# OrgChart: Paper Dolls for Corporate Theater — Repository Guidelines
+
+MIT License © 2026 Ben McNulty
 
 ## Project Structure & Module Organization
 This repo is a small Bun application with no build step. `server.js` serves static files from `public/` and proxies Ollama requests through `/api/proxy` and `/api/stream`. Keep browser code in `public/`: `index.html` is the shell, `app.js` manages sources and layout, `chat.js` handles chat state and streaming, `markdown.js` renders message content, and `style.css` contains the theme and layout tokens.

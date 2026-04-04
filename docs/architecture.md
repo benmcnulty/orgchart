@@ -1,4 +1,6 @@
-# Architecture Notes
+# OrgChart: Paper Dolls for Corporate Theater — Architecture Notes
+
+MIT License © 2026 Ben McNulty
 
 ## Runtime Shape
 

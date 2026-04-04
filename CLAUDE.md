@@ -1,4 +1,6 @@
-# Distributed Inference Dashboard — CLAUDE.md
+# OrgChart: Paper Dolls for Corporate Theater — CLAUDE.md
+
+MIT License © 2026 Ben McNulty
 
 ## Project Overview
 
