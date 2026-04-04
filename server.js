@@ -143,7 +143,7 @@ function json(data, status = 200) {
 // Accepts { userInput, phaseOverrides? } and streams pipeline progress back as
 // Server-Sent Events. Each event is a JSON-encoded object on a `data:` line.
 //
-// SSE event types: phase_start | chunk | phase_complete | pipeline_complete | error
+// SSE event types: primer | phase_start | chunk | phase_retry | phase_complete | pipeline_complete | error
 // See lib/pipeline-runner.js for the full event schema.
 
 async function handlePipelineRun(req) {

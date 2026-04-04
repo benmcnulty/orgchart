@@ -224,16 +224,46 @@ function buildPhaseCard(phase) {
   const thinkDetails = document.createElement('details');
   thinkDetails.className = 'thinking-details pipeline-thinking';
   thinkDetails.hidden = true;
-  thinkDetails.open = true;
+  thinkDetails.open = false;
+  thinkDetails.dataset.streaming = 'false';
 
   const thinkSummary = document.createElement('summary');
   thinkSummary.className = 'thinking-summary';
-  thinkSummary.textContent = 'Thinking…';
+
+  const thinkSummaryMain = document.createElement('span');
+  thinkSummaryMain.className = 'thinking-summary-main';
+
+  const thinkDot = document.createElement('span');
+  thinkDot.className = 'thinking-status-dot';
+
+  const thinkTitle = document.createElement('span');
+  thinkTitle.className = 'thinking-title';
+  thinkTitle.textContent = 'Thinking';
+
+  const thinkMeta = document.createElement('span');
+  thinkMeta.className = 'thinking-meta';
+  thinkMeta.textContent = 'Hidden by default';
+
+  thinkSummaryMain.append(thinkDot, thinkTitle, thinkMeta);
+
+  const thinkPreview = document.createElement('span');
+  thinkPreview.className = 'thinking-preview';
+  thinkPreview.textContent = 'Available when the phase starts';
+
+  thinkSummary.append(thinkSummaryMain, thinkPreview);
+
+  const thinkPanel = document.createElement('div');
+  thinkPanel.className = 'thinking-panel';
+
+  const thinkPanelInner = document.createElement('div');
+  thinkPanelInner.className = 'thinking-panel-inner';
 
   const thinkEl = document.createElement('div');
   thinkEl.className = 'thinking-content md-content';
 
-  thinkDetails.append(thinkSummary, thinkEl);
+  thinkPanelInner.appendChild(thinkEl);
+  thinkPanel.appendChild(thinkPanelInner);
+  thinkDetails.append(thinkSummary, thinkPanel);
 
   // ── Streaming output area ─────────────────────────────────────────────────
   const outputWrap = document.createElement('div');
@@ -249,7 +279,19 @@ function buildPhaseCard(phase) {
   card.append(header, thinkDetails, outputWrap);
 
   // Store refs for live updates
-  phaseRefs[phase] = { card, statusBadge, durationEl, thinkDetails, thinkEl, thinkSummary, streamEl, charCountEl, retryBtn };
+  phaseRefs[phase] = {
+    card,
+    statusBadge,
+    durationEl,
+    thinkDetails,
+    thinkEl,
+    thinkSummary,
+    thinkMeta,
+    thinkPreview,
+    streamEl,
+    charCountEl,
+    retryBtn,
+  };
 
   return card;
 }
@@ -452,27 +494,68 @@ function pipelineHandleEvent(event) {
       if (!refs) break;
       refs.card.hidden = false;
       pipelineSetPhaseStatus(phase, 'running');
+      refs.thinkDetails.dataset.streaming = 'true';
+      refs.thinkMeta.textContent = 'Streaming';
+      refs.thinkPreview.textContent = 'Reasoning trace is being collected';
+      pipelineSetRunStatus(`Running ${PHASE_META[phase]?.label ?? phase}…`, 'info');
       // Scroll card into view smoothly
       refs.card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       break;
     }
 
+    case 'primer': {
+      const label = event.model ? `${event.model}` : 'model';
+      if (event.status === 'start') {
+        pipelineSetRunStatus(`Priming ${label} on ${pipelineShortSource(event.sourceUrl)}…`, 'info');
+      } else if (event.status === 'retry') {
+        pipelineSetRunStatus(`Retrying warm-up for ${label} on ${pipelineShortSource(event.sourceUrl)}…`, 'info');
+      }
+      break;
+    }
+
+    case 'phase_retry': {
+      if (!refs) break;
+      pipelineSetRunStatus(
+        `${PHASE_META[phase]?.label ?? phase} timed out. Re-priming ${pipelineShortSource(event.sourceUrl)} and retrying…`,
+        'info',
+      );
+      refs.thinkDetails.hidden = false;
+      refs.thinkDetails.dataset.streaming = 'true';
+      refs.thinkMeta.textContent = `Retry ${event.attempt}`;
+      break;
+    }
+
     case 'chunk': {
       if (!refs) break;
-      const { delta } = event;
+      const { channel, delta } = event;
+      if (!delta) break;
 
-      // Detect and route thinking-block deltas to the thinking panel
-      // For display purposes we show raw deltas live; the stripped version
-      // is shown after phase_complete arrives with the final record.
-      if (delta.includes('<|channel>') || delta.includes('<think>') || delta.includes('<thought>')) {
-        // Thinking-tag boundary — just append to stream; will be re-rendered on complete
+      if (channel === 'thinking') {
+        refs.thinkDetails.hidden = false;
+        refs.thinkDetails.dataset.streaming = 'true';
+        refs.thinkMeta.textContent = 'Streaming';
+
+        const currentThinking = refs.thinkEl.dataset.raw ?? '';
+        const nextThinking = currentThinking + delta;
+        refs.thinkEl.dataset.raw = nextThinking;
+        refs.thinkEl.classList.add('thinking-content--live');
+
+        const lastThinking = refs.thinkEl.lastChild;
+        if (lastThinking?.nodeType === Node.TEXT_NODE) {
+          lastThinking.textContent += delta;
+        } else {
+          refs.thinkEl.appendChild(document.createTextNode(delta));
+        }
+
+        refs.thinkPreview.textContent = pipelinePreviewText(nextThinking) || 'Reasoning trace available';
+        break;
       }
 
       const currentText = refs.streamEl.dataset.raw ?? '';
-      refs.streamEl.dataset.raw = currentText + delta;
+      const nextText = currentText + delta;
+      refs.streamEl.dataset.raw = nextText;
+      refs.streamEl.classList.add('pipeline-stream--live');
 
-      // Lightweight live display: append a text node so we avoid full re-render every chunk.
-      // renderMarkdown() will replace this once the phase completes.
       const last = refs.streamEl.lastChild;
       if (last?.nodeType === Node.TEXT_NODE) {
         last.textContent += delta;
@@ -480,8 +563,7 @@ function pipelineHandleEvent(event) {
         refs.streamEl.appendChild(document.createTextNode(delta));
       }
 
-      // Update char count
-      const charLen = (refs.streamEl.dataset.raw ?? '').length;
+      const charLen = nextText.length;
       refs.charCountEl.textContent = charLen > 0 ? `${charLen.toLocaleString()} chars` : '';
       break;
     }
@@ -499,6 +581,7 @@ function pipelineHandleEvent(event) {
       }
 
       pipelineSetPhaseStatus(phase, 'complete');
+      refs.thinkDetails.dataset.streaming = 'false';
 
       // Duration badge
       if (record.durationMs != null) {
@@ -508,6 +591,7 @@ function pipelineHandleEvent(event) {
 
       // Re-render output as markdown (replaces raw streaming text nodes)
       refs.streamEl.dataset.raw = record.strippedOutput ?? '';
+      refs.streamEl.classList.remove('pipeline-stream--live');
       refs.streamEl.replaceChildren(renderMarkdown(record.strippedOutput ?? ''));
 
       const charLen = (record.strippedOutput ?? '').length;
@@ -515,9 +599,16 @@ function pipelineHandleEvent(event) {
 
       // Thinking panel — render markdown if present, hide details if not
       if (record.thinkingContent) {
+        refs.thinkEl.classList.remove('thinking-content--live');
+        refs.thinkEl.dataset.raw = record.thinkingContent;
         refs.thinkEl.replaceChildren(renderMarkdown(record.thinkingContent));
-        refs.thinkSummary.textContent = 'Thinking';
+        refs.thinkMeta.textContent = 'Available';
+        refs.thinkPreview.textContent = pipelinePreviewText(record.thinkingContent) || 'Reasoning trace available';
         refs.thinkDetails.hidden = false;
+        refs.thinkDetails.open = false;
+      } else {
+        refs.thinkEl.classList.remove('thinking-content--live');
+        refs.thinkDetails.hidden = true;
       }
 
       // Store stripped output for retry context
@@ -540,6 +631,7 @@ function pipelineHandleEvent(event) {
     case 'error': {
       if (refs) {
         pipelineSetPhaseStatus(phase, 'error');
+        refs.thinkDetails.dataset.streaming = 'false';
         const errEl = document.createElement('p');
         errEl.className = 'message-error';
         errEl.textContent = `Error: ${event.message}`;
@@ -549,6 +641,18 @@ function pipelineHandleEvent(event) {
       pipelineSetRunStatus(`Phase ${PHASE_META[phase]?.label ?? phase} failed: ${event.message}`, 'error');
       break;
     }
+  }
+}
+
+function pipelinePreviewText(text) {
+  return String(text ?? '').replace(/\s+/g, ' ').trim().slice(0, 120);
+}
+
+function pipelineShortSource(sourceUrl) {
+  try {
+    return new URL(sourceUrl).hostname || sourceUrl;
+  } catch {
+    return sourceUrl ?? 'source';
   }
 }
 
@@ -657,10 +761,17 @@ async function pipelineStartRun(precomputedCtx = {}) {
       refs.statusBadge.textContent = 'Pending';
       refs.streamEl.replaceChildren();
       refs.streamEl.dataset.raw = '';
+      refs.streamEl.classList.remove('pipeline-stream--live');
       refs.charCountEl.textContent = '';
       refs.durationEl.hidden = true;
       refs.thinkDetails.hidden = true;
+      refs.thinkDetails.open = false;
+      refs.thinkDetails.dataset.streaming = 'false';
       refs.thinkEl.replaceChildren();
+      refs.thinkEl.dataset.raw = '';
+      refs.thinkEl.classList.remove('thinking-content--live');
+      refs.thinkMeta.textContent = 'Hidden by default';
+      refs.thinkPreview.textContent = 'Available when the phase starts';
       refs.retryBtn.hidden = true;
     }
     if (pipelineFinalEl) pipelineFinalEl.replaceChildren();

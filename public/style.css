@@ -1144,6 +1144,20 @@ h1 {
   overflow-y: auto;
 }
 
+.thinking-content--live::after,
+.pipeline-stream--live::after {
+  content: '_';
+  display: inline-block;
+  margin-left: 2px;
+  color: var(--accent);
+  animation: pipeline-cursor 0.9s steps(1) infinite;
+}
+
+@keyframes pipeline-cursor {
+  0%, 45% { opacity: 1; }
+  46%, 100% { opacity: 0; }
+}
+
 /* Override md-content defaults for the smaller thinking area */
 .thinking-content.md-content p {
   margin: 0 0 6px;
