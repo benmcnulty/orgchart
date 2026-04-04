@@ -118,4 +118,71 @@ describe('runPipeline', () => {
     expect(run.phases.synthesizer.strippedOutput).toBe('Final answer.');
     expect(run.finalOutput).toBe('Final answer.');
   });
+
+  test('does not abort when warm-up fails for the runnable phase model', async () => {
+    const events = [];
+    let callIndex = 0;
+
+    global.fetch = async () => {
+      callIndex += 1;
+
+      if (callIndex === 1 || callIndex === 2) {
+        return new Response(JSON.stringify({ error: "model 'gemma4:e4b' not found" }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (callIndex === 3) {
+        return makeNdjsonResponse([
+          JSON.stringify({ message: { thinking: 'Recover after warm-up failure.' } }),
+          JSON.stringify({ message: { content: 'Recovered output.' } }),
+        ]);
+      }
+
+      throw new Error(`Unexpected fetch call ${callIndex}`);
+    };
+
+    const run = await runPipeline(
+      'Write a short answer.',
+      {
+        synthesizer: { sourceUrl: 'http://air:11434', model: 'gemma4:e4b', thinkingEnabled: true },
+      },
+      event => events.push(event),
+      {
+        optimizedPrompt: 'Optimized prompt.',
+        generatedOutput: 'Draft output.',
+        critiqueReport: 'Critique report.',
+      },
+    );
+
+    expect(events.filter(event => event.type === 'primer')).toEqual([
+      {
+        type: 'primer',
+        status: 'start',
+        key: 'http://air:11434::gemma4:e4b',
+        model: 'gemma4:e4b',
+        sourceUrl: 'http://air:11434',
+      },
+      {
+        type: 'primer',
+        status: 'retry',
+        key: 'http://air:11434::gemma4:e4b',
+        model: 'gemma4:e4b',
+        sourceUrl: 'http://air:11434',
+        message: "Prime failed (404): {\"error\":\"model 'gemma4:e4b' not found\"}",
+      },
+      {
+        type: 'primer',
+        status: 'failed',
+        key: 'http://air:11434::gemma4:e4b',
+        model: 'gemma4:e4b',
+        sourceUrl: 'http://air:11434',
+        message: "Prime failed (404): {\"error\":\"model 'gemma4:e4b' not found\"}",
+      },
+    ]);
+    expect(run.phases.optimizer.skipped).toBe(true);
+    expect(run.phases.synthesizer.strippedOutput).toBe('Recovered output.');
+    expect(run.finalOutput).toBe('Recovered output.');
+  });
 });

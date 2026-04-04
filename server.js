@@ -166,6 +166,11 @@ async function handlePipelineRun(req) {
   const stream = new ReadableStream({
     async start(controller) {
       const enc = new TextEncoder();
+      const keepAliveTimer = setInterval(() => {
+        try {
+          controller.enqueue(enc.encode(': keepalive\n\n'));
+        } catch { /* client disconnected */ }
+      }, 5000);
 
       const send = event => {
         try {
@@ -180,6 +185,7 @@ async function handlePipelineRun(req) {
         console.error(`[pipeline ${requestId}] fatal`, err.message);
         send({ type: 'error', phase: null, message: err.message });
       } finally {
+        clearInterval(keepAliveTimer);
         controller.close();
       }
     },
@@ -217,6 +223,7 @@ export function appFetch(req) {
 if (import.meta.main) {
   const server = Bun.serve({
     port: PORT,
+    idleTimeout: 255,
     fetch: appFetch,
   });
 

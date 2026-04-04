@@ -109,6 +109,7 @@ function pipelinePickSource(phaseName, allSources) {
 
 let pipelineRunning = false;
 let pipelineAbortController = null;
+const PIPELINE_FETCH_RETRY_DELAY_MS = 1500;
 
 /** Accumulated phase outputs for retry-from-failure */
 let pipelinePhaseCtx = {};
@@ -509,6 +510,11 @@ function pipelineHandleEvent(event) {
         pipelineSetRunStatus(`Priming ${label} on ${pipelineShortSource(event.sourceUrl)}…`, 'info');
       } else if (event.status === 'retry') {
         pipelineSetRunStatus(`Retrying warm-up for ${label} on ${pipelineShortSource(event.sourceUrl)}…`, 'info');
+      } else if (event.status === 'failed') {
+        pipelineSetRunStatus(
+          `Warm-up failed for ${label} on ${pipelineShortSource(event.sourceUrl)}. Continuing with the phase request…`,
+          'info',
+        );
       }
       break;
     }
@@ -789,21 +795,43 @@ async function pipelineStartRun(precomputedCtx = {}) {
 
   try {
     const phaseOverrides = pipelineRunConfigRef ? buildRunConfig(pipelineRunConfigRef) : {};
+    const requestBody = JSON.stringify({ userInput, phaseOverrides, precomputedCtx });
+    let seenEvents = 0;
 
-    const response = await fetch('/api/pipeline/run', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userInput, phaseOverrides, precomputedCtx }),
-      signal: pipelineAbortController.signal,
-    });
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const response = await fetch('/api/pipeline/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: requestBody,
+          signal: pipelineAbortController.signal,
+        });
 
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-      throw new Error(body.error ?? `HTTP ${response.status}`);
-    }
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+          throw new Error(body.error ?? `HTTP ${response.status}`);
+        }
 
-    for await (const event of readPipelineSse(response)) {
-      pipelineHandleEvent(event);
+        for await (const event of readPipelineSse(response)) {
+          seenEvents += 1;
+          pipelineHandleEvent(event);
+        }
+        break;
+      } catch (err) {
+        const isTransientFetchFailure =
+          err.name !== 'AbortError' &&
+          seenEvents === 0 &&
+          attempt === 0 &&
+          /load failed|failed to fetch|networkerror/i.test(String(err.message ?? err));
+
+        if (isTransientFetchFailure) {
+          pipelineSetRunStatus('Pipeline connection dropped during startup. Retrying once…', 'info');
+          await new Promise(resolve => setTimeout(resolve, PIPELINE_FETCH_RETRY_DELAY_MS));
+          continue;
+        }
+
+        throw err;
+      }
     }
 
   } catch (err) {
