@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Distributed Inference</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="header-inner">
+        <div class="header-title">
+          <span class="header-logo">◈</span>
+          <h1>Distributed Inference</h1>
+        </div>
+        <p class="header-sub">Local Ollama API Sources</p>
+      </div>
+    </header>
+
+    <main class="app-main">
+      <div class="sources-toolbar">
+        <h2 class="section-title">Inference Sources</h2>
+        <button id="add-source-btn" class="btn-add" title="Add inference source">
+          <span>+</span>
+        </button>
+      </div>
+
+      <div id="sources-container" class="sources-container">
+        <!-- Source cards are rendered here by app.js -->
+      </div>
+    </main>
+
+    <!-- Add Source Modal -->
+    <div id="add-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal">
+        <h3 id="modal-title" class="modal-title">Add Inference Source</h3>
+        <p class="modal-hint">Enter the base URL of an Ollama API server on your network.</p>
+        <label class="field-label" for="source-url">Ollama API URL</label>
+        <input
+          id="source-url"
+          class="text-input"
+          type="text"
+          placeholder="http://192.168.1.x:11434"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <p id="modal-error" class="modal-error hidden"></p>
+        <div class="modal-actions">
+          <button id="modal-cancel" class="btn-secondary">Cancel</button>
+          <button id="modal-confirm" class="btn-primary">Connect</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

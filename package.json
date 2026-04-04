@@ -1,0 +1,13 @@
+{
+  "name": "distributed-inference",
+  "version": "0.1.0",
+  "description": "Local distributed inference dashboard for managing Ollama API sources across a network",
+  "type": "module",
+  "scripts": {
+    "start": "bun server.js",
+    "dev": "bun --watch server.js"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  }
+}
