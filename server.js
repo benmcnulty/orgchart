@@ -158,6 +158,7 @@ async function handlePipelineRun(req) {
   if (!userInput) return json({ error: 'userInput is required' }, 400);
 
   const phaseOverrides = body.phaseOverrides ?? {};
+  const precomputedCtx = body.precomputedCtx ?? {};
   const requestId = nextRequestSeq++;
   console.log(`[pipeline ${requestId}] start input_len=${userInput.length}`);
 
@@ -173,7 +174,7 @@ async function handlePipelineRun(req) {
       };
 
       try {
-        await runPipeline(userInput, phaseOverrides, send);
+        await runPipeline(userInput, phaseOverrides, send, precomputedCtx);
         console.log(`[pipeline ${requestId}] complete`);
       } catch (err) {
         console.error(`[pipeline ${requestId}] fatal`, err.message);

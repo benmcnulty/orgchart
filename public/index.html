@@ -24,6 +24,7 @@
       <div id="panel-persona-mount"></div>
       <div id="panel-chat-mount"></div>
       <div id="panel-group-chat-mount"></div>
+      <div id="panel-pipeline-mount"></div>
     </main>
 
     <!-- Add Source Modal (static HTML — toggled by app.js) -->
@@ -54,11 +55,13 @@
         1. markdown.js          — renderMarkdown() global, no dependencies
         2. inference-policy.js  — shared Gemma/Ollama prompt policy helpers
         3. chat.js              — chat UI, depends on renderMarkdown + app.js globals
-        4. app.js               — sources state, panels, calls chatInit() at end of init()
+        4. pipeline.js          — multiphase lab UI, depends on renderMarkdown + app.js globals
+        5. app.js               — sources state, panels, calls chatInit() + pipelineInit() at end of init()
     -->
     <script src="markdown.js"></script>
     <script src="inference-policy.js"></script>
     <script src="chat.js"></script>
+    <script src="pipeline.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

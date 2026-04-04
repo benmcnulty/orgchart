@@ -3031,6 +3031,16 @@ function init() {
   document.getElementById('panel-group-chat-mount').appendChild(groupChatPanel);
   renderGroupChatPanel(groupChatBody, groupChatActionsLeft, groupChatActionsRight);
 
+  // ── Multiphase Lab panel ──────────────────────────────────────────────────
+  const {
+    panel: pipelinePanel,
+    body: pipelineBody,
+    actionsLeft: pipelineActionsLeft,
+    actionsRight: pipelineActionsRight,
+  } = createPanel('panel-pipeline', 'Multiphase Lab');
+  document.getElementById('panel-pipeline-mount').appendChild(pipelinePanel);
+  pipelineInit(pipelineBody, { actionsLeft: pipelineActionsLeft, actionsRight: pipelineActionsRight }); // defined in pipeline.js
+
   // Kick off connection attempts for all loaded sources
   for (const source of sources) {
     connectSource(source);

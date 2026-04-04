@@ -2228,3 +2228,448 @@ h1 {
     display: flex;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   MULTIPHASE LAB PIPELINE
+   OrgChart: Paper Dolls for Corporate Theater
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Panel body ─────────────────────────────────────────────────────────────── */
+
+.pipeline-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px;
+}
+
+/* ─── Input section ──────────────────────────────────────────────────────────── */
+
+.pipeline-input-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pipeline-textarea {
+  width: 100%;
+  min-height: 110px;
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text);
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  resize: vertical;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.pipeline-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.pipeline-run-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pipeline-run-btn {
+  flex-shrink: 0;
+}
+
+.pipeline-run-status {
+  font-size: 12px;
+  color: var(--text-muted);
+  flex: 1;
+}
+
+.pipeline-run-status--error {
+  color: var(--error, #e05d5d);
+}
+
+.pipeline-run-status--info {
+  color: var(--text-muted);
+}
+
+/* ─── Config details panel ───────────────────────────────────────────────────── */
+
+.pipeline-config-details {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.pipeline-config-summary {
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  background: var(--surface);
+  letter-spacing: 0.02em;
+}
+
+.pipeline-config-summary:hover {
+  color: var(--text);
+}
+
+.pipeline-config-details[open] .pipeline-config-summary {
+  border-bottom: 1px solid var(--border);
+}
+
+.pipeline-config-grid {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.pipeline-config-hdr-row,
+.pipeline-config-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 1fr 80px;
+  gap: 8px;
+  padding: 6px 12px;
+  align-items: center;
+}
+
+.pipeline-config-hdr-row {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.pipeline-config-hdr {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.pipeline-config-row + .pipeline-config-row {
+  border-top: 1px solid var(--border);
+}
+
+.pipeline-config-phase-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.pipeline-config-select {
+  width: 100%;
+  height: 28px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text);
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.pipeline-config-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.pipeline-thinking-toggle {
+  height: 26px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  white-space: nowrap;
+}
+
+.pipeline-thinking-toggle--on {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.pipeline-thinking-toggle--off {
+  background: var(--surface);
+  color: var(--text-muted);
+  border-color: var(--border);
+}
+
+/* ─── Phase cards section ────────────────────────────────────────────────────── */
+
+.pipeline-phases {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pipeline-phase-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface);
+  animation: msg-in 0.18s ease-out;
+}
+
+.pipeline-phase-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.pipeline-phase-name {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.pipeline-phase-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.pipeline-phase-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.pipeline-phase-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.pipeline-phase-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ─── Status badges ──────────────────────────────────────────────────────────── */
+
+.pipeline-status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.pipeline-status-badge--pending {
+  background: var(--surface);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+.pipeline-status-badge--running {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.pipeline-status-badge--complete {
+  background: color-mix(in srgb, #4caf72 18%, transparent);
+  color: #4caf72;
+  border: 1px solid color-mix(in srgb, #4caf72 40%, transparent);
+}
+
+.pipeline-status-badge--skipped {
+  background: color-mix(in srgb, var(--text-muted) 14%, transparent);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+.pipeline-status-badge--error {
+  background: color-mix(in srgb, #e05d5d 18%, transparent);
+  color: #e05d5d;
+  border: 1px solid color-mix(in srgb, #e05d5d 40%, transparent);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+
+/* ─── Duration + retry ───────────────────────────────────────────────────────── */
+
+.pipeline-duration {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.pipeline-retry-btn {
+  font-size: 11px;
+  height: 26px;
+  padding: 0 10px;
+}
+
+/* ─── Thinking block (reuses .thinking-details base) ────────────────────────── */
+
+.pipeline-thinking {
+  margin: 0;
+  border-top: none;
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ─── Phase output area ──────────────────────────────────────────────────────── */
+
+.pipeline-phase-output {
+  position: relative;
+  padding: 14px;
+  background: var(--bg);
+  min-height: 48px;
+}
+
+.pipeline-stream {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* When markdown is rendered inside a pipeline stream, switch to normal flow */
+.pipeline-stream p,
+.pipeline-stream ul,
+.pipeline-stream ol,
+.pipeline-stream h1,
+.pipeline-stream h2,
+.pipeline-stream h3 {
+  white-space: normal;
+}
+
+.pipeline-char-count {
+  position: absolute;
+  bottom: 6px;
+  right: 10px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+/* ─── Final output section ───────────────────────────────────────────────────── */
+
+.pipeline-output-section {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.pipeline-output-header {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.pipeline-output-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.01em;
+}
+
+.pipeline-final-output {
+  padding: 16px;
+  min-height: 80px;
+  background: var(--bg);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+/* ─── Run documentation (collapsible) ────────────────────────────────────────── */
+
+.pipeline-run-docs-details {
+  border-top: 1px solid var(--border);
+}
+
+.pipeline-run-docs-summary {
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  background: var(--surface);
+}
+
+.pipeline-run-docs-summary:hover {
+  color: var(--text);
+}
+
+.pipeline-run-docs-details[open] .pipeline-run-docs-summary {
+  border-bottom: 1px solid var(--border);
+}
+
+.pipeline-run-docs {
+  padding: 14px 16px;
+  font-size: 13px;
+  line-height: 1.6;
+  background: var(--bg);
+}
+
+/* ─── Output action buttons ──────────────────────────────────────────────────── */
+
+.pipeline-output-actions {
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  flex-wrap: wrap;
+}
+
+/* ─── Responsive ─────────────────────────────────────────────────────────────── */
+
+@media (max-width: 700px) {
+  .pipeline-config-hdr-row,
+  .pipeline-config-row {
+    grid-template-columns: 90px 1fr 1fr 70px;
+    gap: 6px;
+    padding: 6px 10px;
+  }
+
+  .pipeline-phase-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .pipeline-phase-header-right {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
