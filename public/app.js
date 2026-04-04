@@ -61,6 +61,7 @@ function loadSources() {
         label: s.label ?? '',
         isDefault: s.isDefault ?? false,
         enabled: s.enabled ?? true,
+        capacity: s.capacity ?? 'medium',
         hasUpdate: false,
       }));
       nextSeq = Math.max(...sources.map(s => s._seq ?? 0)) + 1;
@@ -76,8 +77,8 @@ function loadSources() {
 }
 
 function saveSources() {
-  const persist = sources.map(({ id, url, selectedModel, label, isDefault, enabled, _seq }) => ({
-    id, url, selectedModel, label, isDefault, enabled, _seq,
+  const persist = sources.map(({ id, url, selectedModel, label, isDefault, enabled, capacity, _seq }) => ({
+    id, url, selectedModel, label, isDefault, enabled, capacity, _seq,
   }));
   localStorage.setItem(STORAGE_KEY, JSON.stringify(persist));
   notifySources();
@@ -134,6 +135,7 @@ function makeSource(url) {
     label: '',
     isDefault: false,
     enabled: true,
+    capacity: 'medium', // 'small' | 'medium' | 'large' — informs pipeline routing
     hasUpdate: false,
     _seq: seq,
   };
@@ -457,7 +459,25 @@ function buildCard(source) {
   const meta = el('span', `model-count${source.status === 'error' ? ' error' : ''}`);
   meta.textContent = metaText(source);
 
-  modelRow.append(select, meta);
+  // ── Capacity selector ─────────────────────────────────────────────────────
+  // Sets the hardware tier for this source; used by the pipeline to route
+  // phases to the most appropriate machine.
+  const capacitySelect = document.createElement('select');
+  capacitySelect.className = 'capacity-select';
+  capacitySelect.title = 'Inference capacity tier — routes pipeline phases to the right hardware';
+  for (const [value, label] of [['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']]) {
+    const opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = label;
+    opt.selected = source.capacity === value;
+    capacitySelect.appendChild(opt);
+  }
+  capacitySelect.addEventListener('change', e => {
+    source.capacity = e.target.value;
+    saveSources();
+  });
+
+  modelRow.append(select, meta, capacitySelect);
 
   // ── Event wiring ──────────────────────────────────────────────────────────
   btnStar.addEventListener('click', () => {

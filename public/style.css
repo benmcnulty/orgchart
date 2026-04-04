@@ -561,10 +561,38 @@ h1 {
   font-size: 11px;
   color: var(--text-muted);
   white-space: nowrap;
+  flex: 1;
 }
 
 .model-count.error {
   color: var(--red);
+}
+
+/* Capacity tier selector — Small / Medium / Large */
+.capacity-select {
+  height: 28px;
+  padding: 0 8px;
+  padding-right: 24px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  appearance: none;
+  background-image: var(--select-arrow);
+  background-repeat: no-repeat;
+  background-position: right 7px center;
+  flex-shrink: 0;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.capacity-select:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  color: var(--text);
 }
 
 /* ─── Modal ──────────────────────────────────────────────────────────────── */
