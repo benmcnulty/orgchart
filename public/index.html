@@ -64,9 +64,11 @@
         5. agents.js            — agent/persona state, CRUD, editor, instruction drafting
         6. skills.js            — skills state, CRUD, panel rendering
         7. tools.js             — tools state, CRUD, panel rendering
-        8. chat.js              — chat UI, depends on renderMarkdown + app.js globals
+        8. management.js        — organization, department, team, and role management
+        9. intranet-mod.js      — intranet documents and custom tools panel
+       10. chat.js              — chat UI, depends on renderMarkdown + app.js globals
         9. pipeline.js          — multiphase lab UI, depends on renderMarkdown + app.js globals
-       10. app.js               — panels, calls sourcesInit() + chatInit() + pipelineInit() at end of init()
+       11. app.js               — panels, calls sourcesInit() + chatInit() + pipelineInit() at end of init()
     -->
     <script src="shared.js"></script>
     <script src="markdown.js"></script>
@@ -75,6 +77,8 @@
     <script src="agents.js"></script>
     <script src="skills.js"></script>
     <script src="tools.js"></script>
+    <script src="management.js"></script>
+    <script src="intranet-mod.js"></script>
     <script src="chat.js"></script>
     <script src="pipeline.js"></script>
     <script src="app.js"></script>
