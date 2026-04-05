@@ -6,7 +6,7 @@
   "scripts": {
     "start": "bun server.js",
     "dev": "bun --watch server.js",
-    "check": "node --check public/inference-policy.js && node --check public/chat.js && node --check public/app.js && node --check public/pipeline.js && node --check public/markdown.js && node --check lib/pipeline-runner.js && node --check server.js",
+    "check": "node --check public/inference-policy.js && node --check public/chat.js && node --check public/app.js && node --check public/pipeline.js && node --check public/markdown.js && node --check lib/pipeline-runner.js && node --check lib/orgchart-store.js && node --check server.js",
     "test": "bun test",
     "test:unit": "bun test"
   },
