@@ -378,7 +378,7 @@ function chatSelectedPersona(session = activeChat()) {
   return personas.find(persona => persona.id === session.selectedPersonaId) ?? null;
 }
 
-function chatBuildRequestMessages(session, source) {
+async function chatBuildRequestMessages(session, source, agentResourceContext = '') {
   const selectedPersona = chatSelectedPersona(session);
   const transcript = session.messages
     .map(message => `${message.role.toUpperCase()}:\n${message.content}`)
@@ -398,7 +398,14 @@ function chatBuildRequestMessages(session, source) {
     outputFormat: 'Return the assistant reply only.',
     includeThought: true,
   });
-  return prompt.messages;
+  const messages = prompt.messages;
+  if (agentResourceContext.trim()) {
+    messages.unshift({
+      role: 'system',
+      content: `Agent resources:\n${agentResourceContext.trim()}`,
+    });
+  }
+  return messages;
 }
 
 function chatHandleFiles(files) {
@@ -507,7 +514,11 @@ async function chatSend() {
   const parser = new ChatThinkingParser();
   let fullText = '';
   let fullThinking = '';
-  const requestMessages = chatBuildRequestMessages(session, source);
+  const selectedAgent = chatSelectedPersona(session);
+  const agentResourceContext = typeof window.orgchartBuildAgentResourceContext === 'function'
+    ? await window.orgchartBuildAgentResourceContext(selectedAgent, rawText, { researchQuery: rawText })
+    : '';
+  const requestMessages = await chatBuildRequestMessages(session, source, agentResourceContext);
 
   try {
     const response = await fetch(`/api/stream?url=${encodeURIComponent(source.url + '/api/chat')}`, {
