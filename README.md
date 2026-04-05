@@ -46,7 +46,9 @@ Paper dolls for corporate theater — disposable, interchangeable, surprisingly 
 - **Session snapshots** — full import/export of all in-flight state
 
 ### Multiphase Lab
-- **Four-phase pipeline** — Optimizer → Generator → Critic → Synthesizer
+- **Multi-project workspace** — keep multiple lab projects in a shared sidebar
+- **Editable phase plans** — enable, disable, reorder, and add custom phases
+- **Per-phase personas** — apply saved persona instructions to individual phases
 - **Capacity-aware routing** — phases assigned to sources by hardware tier
 - **Streaming display** — visible output streams cleanly without duplicated reasoning tags
 - **Thinking panels** — full reasoning traces stay available per phase, hidden by default while they stream

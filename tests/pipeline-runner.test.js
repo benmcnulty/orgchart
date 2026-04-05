@@ -117,18 +117,18 @@ describe('runPipeline', () => {
     expect(events.filter(event => event.type === 'primer')).toHaveLength(4);
     expect(events.filter(event => event.type === 'primer' && event.status === 'complete')).toHaveLength(2);
     expect(events.some(event => event.type === 'phase_retry' && event.phase === 'synthesizer')).toBe(true);
-    expect(events).toContainEqual({
-      type: 'chunk',
-      phase: 'synthesizer',
-      channel: 'thinking',
-      delta: 'Plan the answer.',
-    });
-    expect(events).toContainEqual({
-      type: 'chunk',
-      phase: 'synthesizer',
-      channel: 'output',
-      delta: 'Final answer.',
-    });
+    expect(events.some(event =>
+      event.type === 'chunk'
+      && event.phase === 'synthesizer'
+      && event.channel === 'thinking'
+      && event.delta === 'Plan the answer.'
+    )).toBe(true);
+    expect(events.some(event =>
+      event.type === 'chunk'
+      && event.phase === 'synthesizer'
+      && event.channel === 'output'
+      && event.delta === 'Final answer.'
+    )).toBe(true);
     expect(run.phases.synthesizer.thinkingContent).toBe('Plan the answer.');
     expect(run.phases.synthesizer.strippedOutput).toBe('Final answer.');
     expect(run.finalOutput).toBe('Final answer.');
@@ -235,5 +235,60 @@ describe('runPipeline', () => {
       'http://air:11434/api/generate',
     ]);
     expect(events.filter(event => event.type === 'primer' && event.status === 'start')).toHaveLength(3);
+  });
+
+  test('runs ordered custom phase definitions and uses the last enabled phase as final output', async () => {
+    const callLog = [];
+
+    global.fetch = async (url) => {
+      const target = String(url);
+      callLog.push(target);
+      if (target.endsWith('/api/generate')) {
+        return new Response(JSON.stringify({ done: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (callLog.filter(item => item.endsWith('/api/chat')).length === 1) {
+        return makeNdjsonResponse([JSON.stringify({ message: { content: 'Draft output.' } })]);
+      }
+
+      return makeNdjsonResponse([JSON.stringify({ message: { content: 'Reviewed final output.' } })]);
+    };
+
+    const run = await runPipeline(
+      'Write a short answer.',
+      {},
+      () => {},
+      {},
+      [
+        {
+          id: 'phase-generate',
+          type: 'generator',
+          label: 'Draft',
+          sourceUrl: 'http://vic:11434',
+          model: 'gemma4:latest',
+          thinkingEnabled: false,
+          enabled: true,
+        },
+        {
+          id: 'phase-review',
+          type: 'custom',
+          label: 'Compliance Review',
+          sourceUrl: 'http://air:11434',
+          model: 'gemma4:e4b',
+          thinkingEnabled: false,
+          enabled: true,
+          personaInstructions: 'Review with a risk and policy mindset.',
+          customInstructions: 'Critique and improve the current working material from a compliance perspective.',
+        },
+      ],
+    );
+
+    expect(run.phaseOrder.map(phase => phase.id)).toEqual(['phase-generate', 'phase-review']);
+    expect(run.phases['phase-generate'].strippedOutput).toBe('Draft output.');
+    expect(run.phases['phase-review'].strippedOutput).toBe('Reviewed final output.');
+    expect(run.finalOutput).toBe('Reviewed final output.');
   });
 });

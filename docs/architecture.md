@@ -56,6 +56,11 @@ If a phase fails with a timeout-like transport error, the runner emits a retry
 event, re-primes that same target, and retries the phase once. This keeps the
 pipeline resilient to cold Ollama models without silently looping forever.
 
+The client-side lab now manages multiple saved pipeline projects. Each project
+stores its own prompt, ordered phase plan, per-phase source/model selection,
+optional persona instructions, and latest run record. The server executes only
+the enabled ordered phase definitions it receives from the active project.
+
 ## Extension Guidance
 
 When adding new autonomous workflows:

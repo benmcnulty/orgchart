@@ -1,656 +1,231 @@
 // pipeline.js — Multiphase Lab UI panel.
 // OrgChart: Paper Dolls for Corporate Theater — MIT © 2026 Ben McNulty
-//
-// Depends on: markdown.js (renderMarkdown global), app.js globals
-//   (sources, displayLabel) — loaded after markdown.js, before app.js.
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+const PIPELINE_STORAGE_KEY = 'pipeline-projects-v2';
+const PIPELINE_UI_KEY = 'pipeline-ui-v2';
+const PIPELINE_FETCH_RETRY_DELAY_MS = 1500;
 
-const PIPELINE_PHASES = ['optimizer', 'generator', 'critic', 'synthesizer'];
+const BUILTIN_PHASES = [
+  { type: 'optimizer', label: 'Optimizer', description: 'Rewrite the prompt for better downstream execution.' },
+  { type: 'generator', label: 'Generator', description: 'Produce the main draft or first-pass answer.' },
+  { type: 'critic', label: 'Critic', description: 'Review the draft and surface concrete improvements.' },
+  { type: 'synthesizer', label: 'Synthesizer', description: 'Deliver the refined final answer.' },
+];
 
-const PHASE_META = {
-  optimizer:   { num: 1, label: 'Optimizer',   desc: 'Rewrites your input into an optimized prompt' },
-  generator:   { num: 2, label: 'Generator',   desc: 'Produces primary content from the optimized prompt' },
-  critic:      { num: 3, label: 'Critic',       desc: 'Multi-axis quality evaluation and revision brief' },
-  synthesizer: { num: 4, label: 'Synthesizer', desc: 'Final revised output with run documentation' },
-};
-
-// Phases that prefer large-capacity sources for routing
 const PHASE_PREFERS_LARGE = new Set(['generator', 'synthesizer']);
 
-// ─── Model Selection ──────────────────────────────────────────────────────────
-
-/**
- * Ordered model preferences per phase per capacity tier.
- *
- * Designed for the OrgChart hardware fleet:
- *   large  — M4 MacBook 32GB:        handles dense 31b models
- *   medium — HP Victus 16GB Nvidia:  targets MoE 26b and efficient e4b
- *   small  — M2 Mini 8GB:            edge models only (e2b / e4b)
- *
- * Per phase rationale:
- *   optimizer/critic — benefit from deliberate reasoning; e4b is fast + smart
- *   generator        — primary quality driver; use the biggest available model
- *   synthesizer      — revision + docs; large model quality matters most here
- */
 const MODEL_PREFERENCES = {
   large: {
-    optimizer:   ['gemma4:e4b', 'gemma4:4b', 'gemma4:26b', 'gemma4:latest'],
-    generator:   ['gemma4:31b', 'gemma4:26b', 'gemma4:latest'],
-    critic:      ['gemma4:e4b', 'gemma4:4b', 'gemma4:26b', 'gemma4:latest'],
+    optimizer: ['gemma4:e4b', 'gemma4:4b', 'gemma4:26b', 'gemma4:latest'],
+    generator: ['gemma4:31b', 'gemma4:26b', 'gemma4:latest'],
+    critic: ['gemma4:e4b', 'gemma4:4b', 'gemma4:26b', 'gemma4:latest'],
     synthesizer: ['gemma4:31b', 'gemma4:26b', 'gemma4:latest'],
+    custom: ['gemma4:latest', 'gemma4:26b', 'gemma4:e4b'],
   },
   medium: {
-    optimizer:   ['gemma4:e4b', 'gemma4:4b', 'gemma4:latest'],
-    generator:   ['gemma4:26b', 'gemma4:e4b', 'gemma4:latest'],
-    critic:      ['gemma4:e4b', 'gemma4:4b', 'gemma4:latest'],
+    optimizer: ['gemma4:e4b', 'gemma4:4b', 'gemma4:latest'],
+    generator: ['gemma4:26b', 'gemma4:e4b', 'gemma4:latest'],
+    critic: ['gemma4:e4b', 'gemma4:4b', 'gemma4:latest'],
     synthesizer: ['gemma4:26b', 'gemma4:e4b', 'gemma4:latest'],
+    custom: ['gemma4:latest', 'gemma4:e4b', 'gemma4:26b'],
   },
   small: {
-    optimizer:   ['gemma4:e2b', 'gemma4:2b', 'gemma4:e4b', 'gemma4:4b', 'gemma4:latest'],
-    generator:   ['gemma4:e4b', 'gemma4:4b', 'gemma4:e2b', 'gemma4:latest'],
-    critic:      ['gemma4:e2b', 'gemma4:2b', 'gemma4:e4b', 'gemma4:latest'],
-    synthesizer: ['gemma4:e4b', 'gemma4:4b', 'gemma4:e2b', 'gemma4:latest'],
+    optimizer: ['gemma4:e2b', 'gemma4:2b', 'gemma4:e4b', 'gemma4:latest'],
+    generator: ['gemma4:e4b', 'gemma4:4b', 'gemma4:latest'],
+    critic: ['gemma4:e2b', 'gemma4:2b', 'gemma4:e4b', 'gemma4:latest'],
+    synthesizer: ['gemma4:e4b', 'gemma4:4b', 'gemma4:latest'],
+    custom: ['gemma4:latest', 'gemma4:e4b', 'gemma4:e2b'],
   },
 };
 
-/**
- * Picks the best available model for a phase given a source's capacity tier.
- * Tries exact match, then quantized-variant prefix match, then any Gemma model,
- * then falls back to the first available model.
- *
- * @param {string} phaseName
- * @param {string[]} availableModels - All models on a source
- * @param {'small'|'medium'|'large'} capacity - Source capacity tier
- * @returns {string}
- */
-function pipelineFallbackModel(phaseName, availableModels, capacity = 'medium') {
-  if (!availableModels?.length) return '';
-  const prefs = MODEL_PREFERENCES[capacity]?.[phaseName] ?? MODEL_PREFERENCES.medium[phaseName] ?? [];
+let pipelineProjects = [];
+let activePipelineProjectId = null;
+let pipelineProjectSeq = 1;
+let pipelinePhaseSeq = 1;
+let pipelineRunning = false;
+let pipelineRunningProjectId = null;
+let pipelineAbortController = null;
+let pipelinePrimerState = new Map();
+let pipelineUiState = { navCollapsed: false };
+let pipelineMountEl = null;
+let pipelineRefs = null;
 
+function pipelineConnectedSources() {
+  return (typeof sources !== 'undefined' ? sources : []).filter(source => source.enabled && source.status === 'connected');
+}
+
+function pipelinePickSource(type, allSources = pipelineConnectedSources()) {
+  if (!allSources.length) return null;
+  if (PHASE_PREFERS_LARGE.has(type)) {
+    return allSources.find(source => source.capacity === 'large')
+      ?? allSources.find(source => source.capacity === 'medium')
+      ?? allSources[0];
+  }
+  return allSources.find(source => source.capacity === 'small')
+    ?? allSources.find(source => source.capacity === 'medium')
+    ?? allSources[0];
+}
+
+function pipelineFallbackModel(type, availableModels, capacity = 'medium', currentModel = '') {
+  if (!availableModels?.length) return currentModel || '';
+  const prefs = MODEL_PREFERENCES[capacity]?.[type] ?? MODEL_PREFERENCES.medium[type] ?? MODEL_PREFERENCES.medium.custom;
   for (const pref of prefs) {
-    // Exact match
-    const exact = availableModels.find(m => m === pref);
+    const exact = availableModels.find(model => model === pref);
     if (exact) return exact;
-    // Prefix match — handles quantized variants like 'gemma4:e4b-it-q4_K_M'
-    const prefixed = availableModels.find(m => m.startsWith(pref + '-') || m.startsWith(pref + ':'));
+    const prefixed = availableModels.find(model => model.startsWith(pref + '-') || model.startsWith(pref + ':'));
     if (prefixed) return prefixed;
   }
-
-  // Last resort: any Gemma model, then whatever's available
-  return availableModels.find(m => m.toLowerCase().includes('gemma')) ?? availableModels[0] ?? '';
+  return availableModels.find(model => model.toLowerCase().includes('gemma')) ?? availableModels[0];
 }
 
-/**
- * Picks the best connected source for a phase based on capacity.
- * generator/synthesizer prefer large → medium → any.
- * optimizer/critic prefer small → medium → any.
- *
- * @param {string} phaseName
- * @param {object[]} allSources
- * @returns {object|null}
- */
-function pipelinePickSource(phaseName, allSources) {
-  const connected = (allSources ?? []).filter(s => s.status === 'connected' && s.enabled);
-  if (!connected.length) return null;
+function makePipelinePhase(type = 'custom') {
+  const builtin = BUILTIN_PHASES.find(item => item.type === type);
+  return {
+    id: `pipeline-phase-${pipelinePhaseSeq++}`,
+    type,
+    label: builtin?.label ?? `Custom Phase ${pipelinePhaseSeq - 1}`,
+    description: builtin?.description ?? '',
+    enabled: true,
+    sourceId: '',
+    model: '',
+    thinkingEnabled: true,
+    personaId: '',
+    customInstructions: '',
+  };
+}
 
-  if (PHASE_PREFERS_LARGE.has(phaseName)) {
-    return connected.find(s => s.capacity === 'large')
-      ?? connected.find(s => s.capacity === 'medium')
-      ?? connected[0];
-  } else {
-    return connected.find(s => s.capacity === 'small')
-      ?? connected.find(s => s.capacity === 'medium')
-      ?? connected[0];
+function defaultPipelinePhases() {
+  return BUILTIN_PHASES.map(phase => makePipelinePhase(phase.type));
+}
+
+function makePipelineProject() {
+  const seq = pipelineProjectSeq++;
+  return {
+    id: `pipeline-project-${seq}`,
+    name: `Project ${seq}`,
+    input: '',
+    phases: defaultPipelinePhases(),
+    currentRun: null,
+    phaseContext: {},
+    hasUpdate: false,
+  };
+}
+
+function activePipelineProject() {
+  return pipelineProjects.find(project => project.id === activePipelineProjectId) ?? pipelineProjects[0] ?? null;
+}
+
+function loadPipelineState() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PIPELINE_STORAGE_KEY) || 'null');
+    if (saved?.projects?.length) {
+      pipelineProjects = saved.projects.map(project => ({
+        id: project.id,
+        name: project.name ?? 'Project',
+        input: project.input ?? '',
+        phases: (project.phases ?? []).map(phase => ({
+          id: phase.id,
+          type: phase.type ?? 'custom',
+          label: phase.label ?? 'Phase',
+          description: phase.description ?? '',
+          enabled: phase.enabled !== false,
+          sourceId: phase.sourceId ?? '',
+          model: phase.model ?? '',
+          thinkingEnabled: phase.thinkingEnabled !== false,
+          personaId: phase.personaId ?? '',
+          customInstructions: phase.customInstructions ?? '',
+        })),
+        currentRun: project.currentRun ?? null,
+        phaseContext: project.phaseContext ?? {},
+        hasUpdate: false,
+      }));
+      pipelineProjectSeq = Math.max(0, ...pipelineProjects.map(project => Number(project.id.split('-').pop()) || 0)) + 1;
+      pipelinePhaseSeq = Math.max(
+        0,
+        ...pipelineProjects.flatMap(project => project.phases.map(phase => Number(phase.id.split('-').pop()) || 0)),
+      ) + 1;
+      activePipelineProjectId = saved.activeProjectId ?? pipelineProjects[0]?.id ?? null;
+    }
+  } catch {
+    pipelineProjects = [];
   }
-}
 
-// ─── State ────────────────────────────────────────────────────────────────────
-
-let pipelineRunning = false;
-let pipelineAbortController = null;
-const PIPELINE_FETCH_RETRY_DELAY_MS = 1500;
-let pipelinePrimerState = new Map();
-
-/** Accumulated phase outputs for retry-from-failure */
-let pipelinePhaseCtx = {};
-
-/** Full PipelineRun record built as events arrive */
-let pipelineCurrentRun = null;
-
-/** Per-phase DOM refs — populated by buildPhaseCards() */
-const phaseRefs = {};
-
-/** Top-level output section refs */
-let pipelineFinalEl = null;
-let pipelineRunDocsEl = null;
-let pipelineOutputActionsEl = null;
-let pipelineRunStatusEl = null;
-
-// ─── SSE Reader ───────────────────────────────────────────────────────────────
-
-/**
- * Async generator that parses a Server-Sent Events response stream.
- * Yields parsed JSON event objects.
- *
- * @param {Response} response
- */
-async function* readPipelineSse(response) {
-  const reader = response.body.getReader();
-  const dec = new TextDecoder();
-  let buf = '';
+  if (!pipelineProjects.length) {
+    const project = makePipelineProject();
+    pipelineProjects = [project];
+    activePipelineProjectId = project.id;
+  }
 
   try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buf += dec.decode(value, { stream: true });
-
-      let idx;
-      while ((idx = buf.indexOf('\n\n')) !== -1) {
-        const block = buf.slice(0, idx).trim();
-        buf = buf.slice(idx + 2);
-        if (!block) continue;
-        const dataLine = block.split('\n').find(l => l.startsWith('data: '));
-        if (!dataLine) continue;
-        try {
-          yield JSON.parse(dataLine.slice(6));
-        } catch { /* malformed event, skip */ }
-      }
-    }
-  } finally {
-    reader.releaseLock();
+    pipelineUiState = JSON.parse(localStorage.getItem(PIPELINE_UI_KEY) || 'null') ?? pipelineUiState;
+  } catch {
+    pipelineUiState = { navCollapsed: false };
   }
 }
 
-// ─── Phase Card Builders ──────────────────────────────────────────────────────
+function savePipelineState() {
+  localStorage.setItem(PIPELINE_STORAGE_KEY, JSON.stringify({
+    activeProjectId: activePipelineProjectId,
+    projects: pipelineProjects.map(project => ({
+      id: project.id,
+      name: project.name,
+      input: project.input,
+      phases: project.phases,
+      currentRun: project.currentRun,
+      phaseContext: project.phaseContext,
+    })),
+  }));
+  localStorage.setItem(PIPELINE_UI_KEY, JSON.stringify(pipelineUiState));
+}
 
-/**
- * Builds a single phase card DOM element and stores refs for live updates.
- * Cards start hidden; pipelineShowPhase() makes them visible.
- *
- * @param {string} phase
- * @returns {HTMLElement}
- */
-function buildPhaseCard(phase) {
-  const { num, label, desc } = PHASE_META[phase];
+function ensurePhaseSelection(phase) {
+  const connected = pipelineConnectedSources();
+  if (!connected.length) return;
+  let source = connected.find(item => item.id === phase.sourceId);
+  if (!source) {
+    source = pipelinePickSource(phase.type, connected) ?? connected[0];
+    phase.sourceId = source?.id ?? '';
+  }
+  if (!source) return;
+  if (!source.models.includes(phase.model)) {
+    phase.model = pipelineFallbackModel(phase.type, source.models, source.capacity, source.selectedModel);
+  }
+}
 
-  const card = document.createElement('div');
-  card.className = 'pipeline-phase-card';
-  card.id = `pipeline-card-${phase}`;
-  card.hidden = true;
+function phasePersonaInstructions(phase) {
+  const allPersonas = typeof personas !== 'undefined' ? personas : [];
+  return allPersonas.find(persona => persona.id === phase.personaId)?.instructions ?? '';
+}
 
-  // ── Card header ───────────────────────────────────────────────────────────
-  const header = document.createElement('div');
-  header.className = 'pipeline-phase-header';
+function enabledProjectPhases(project) {
+  return project.phases.filter(phase => phase.enabled);
+}
 
-  const nameBadge = document.createElement('div');
-  nameBadge.className = 'pipeline-phase-name';
-
-  const numEl = document.createElement('span');
-  numEl.className = 'pipeline-phase-num';
-  numEl.textContent = String(num);
-
-  const labelEl = document.createElement('span');
-  labelEl.className = 'pipeline-phase-label';
-  labelEl.textContent = label;
-
-  const descEl = document.createElement('span');
-  descEl.className = 'pipeline-phase-desc';
-  descEl.textContent = desc;
-
-  nameBadge.append(numEl, labelEl, descEl);
-
-  const statusBadge = document.createElement('span');
-  statusBadge.className = 'pipeline-status-badge pipeline-status-badge--pending';
-  statusBadge.textContent = 'Pending';
-
-  const durationEl = document.createElement('span');
-  durationEl.className = 'pipeline-duration';
-  durationEl.hidden = true;
-
-  const headerRight = document.createElement('div');
-  headerRight.className = 'pipeline-phase-header-right';
-
-  const retryBtn = document.createElement('button');
-  retryBtn.className = 'btn-secondary pipeline-retry-btn';
-  retryBtn.textContent = 'Retry from here';
-  retryBtn.hidden = true;
-  retryBtn.addEventListener('click', () => pipelineRetryFrom(phase));
-
-  headerRight.append(statusBadge, durationEl, retryBtn);
-  header.append(nameBadge, headerRight);
-
-  // ── Thinking section (collapsible, hidden until content arrives) ──────────
-  const thinkDetails = document.createElement('details');
-  thinkDetails.className = 'thinking-details pipeline-thinking';
-  thinkDetails.hidden = true;
-  thinkDetails.open = false;
-  thinkDetails.dataset.streaming = 'false';
-
-  const thinkSummary = document.createElement('summary');
-  thinkSummary.className = 'thinking-summary';
-
-  const thinkSummaryMain = document.createElement('span');
-  thinkSummaryMain.className = 'thinking-summary-main';
-
-  const thinkDot = document.createElement('span');
-  thinkDot.className = 'thinking-status-dot';
-
-  const thinkTitle = document.createElement('span');
-  thinkTitle.className = 'thinking-title';
-  thinkTitle.textContent = 'Thinking';
-
-  const thinkMeta = document.createElement('span');
-  thinkMeta.className = 'thinking-meta';
-  thinkMeta.textContent = 'Hidden by default';
-
-  thinkSummaryMain.append(thinkDot, thinkTitle, thinkMeta);
-
-  const thinkPreview = document.createElement('span');
-  thinkPreview.className = 'thinking-preview';
-  thinkPreview.textContent = 'Available when the phase starts';
-
-  thinkSummary.append(thinkSummaryMain, thinkPreview);
-
-  const thinkPanel = document.createElement('div');
-  thinkPanel.className = 'thinking-panel';
-
-  const thinkPanelInner = document.createElement('div');
-  thinkPanelInner.className = 'thinking-panel-inner';
-
-  const thinkEl = document.createElement('div');
-  thinkEl.className = 'thinking-content md-content';
-
-  thinkPanelInner.appendChild(thinkEl);
-  thinkPanel.appendChild(thinkPanelInner);
-  thinkDetails.append(thinkSummary, thinkPanel);
-
-  // ── Streaming output area ─────────────────────────────────────────────────
-  const outputWrap = document.createElement('div');
-  outputWrap.className = 'pipeline-phase-output';
-
-  const streamEl = document.createElement('div');
-  streamEl.className = 'pipeline-stream md-content';
-
-  const charCountEl = document.createElement('span');
-  charCountEl.className = 'pipeline-char-count';
-
-  outputWrap.append(streamEl, charCountEl);
-  card.append(header, thinkDetails, outputWrap);
-
-  // Store refs for live updates
-  phaseRefs[phase] = {
-    card,
-    statusBadge,
-    durationEl,
-    thinkDetails,
-    thinkEl,
-    thinkSummary,
-    thinkMeta,
-    thinkPreview,
-    streamEl,
-    charCountEl,
-    retryBtn,
+function phaseRunDefinition(phase) {
+  const source = (typeof sources !== 'undefined' ? sources : []).find(item => item.id === phase.sourceId);
+  const builtin = BUILTIN_PHASES.find(item => item.type === phase.type);
+  return {
+    id: phase.id,
+    type: phase.type,
+    label: phase.label || builtin?.label || 'Phase',
+    description: phase.description || builtin?.description || '',
+    enabled: phase.enabled,
+    sourceUrl: source?.url ?? '',
+    model: phase.model || source?.selectedModel || '',
+    thinkingEnabled: phase.thinkingEnabled,
+    personaInstructions: phasePersonaInstructions(phase),
+    customInstructions: phase.customInstructions || '',
   };
-
-  return card;
 }
 
-// ─── Config Panel ─────────────────────────────────────────────────────────────
-
-/**
- * Builds the collapsible per-phase config panel (source / model / thinking).
- * Auto-populates from connected sources using capacity-aware routing.
- *
- * @returns {{ el: HTMLElement, refresh: (sources: object[]) => void }}
- */
-function buildConfigPanel() {
-  const details = document.createElement('details');
-  details.className = 'pipeline-config-details';
-
-  const summary = document.createElement('summary');
-  summary.className = 'pipeline-config-summary';
-  summary.textContent = '⚙ Configure phases';
-  details.appendChild(summary);
-
-  const grid = document.createElement('div');
-  grid.className = 'pipeline-config-grid';
-
-  // Header row
-  const hdrs = ['Phase', 'Source', 'Model', 'Thinking'];
-  const hdrRow = document.createElement('div');
-  hdrRow.className = 'pipeline-config-hdr-row';
-  for (const h of hdrs) {
-    const hEl = document.createElement('span');
-    hEl.className = 'pipeline-config-hdr';
-    hEl.textContent = h;
-    hdrRow.appendChild(hEl);
-  }
-  grid.appendChild(hdrRow);
-
-  // Phase rows
-  const phaseRows = {};
-  for (const phase of PIPELINE_PHASES) {
-    const { num, label } = PHASE_META[phase];
-    const row = document.createElement('div');
-    row.className = 'pipeline-config-row';
-    row.dataset.phase = phase;
-
-    const nameEl = document.createElement('span');
-    nameEl.className = 'pipeline-config-phase-name';
-    nameEl.textContent = `${num}. ${label}`;
-
-    const sourceSelect = document.createElement('select');
-    sourceSelect.className = 'pipeline-config-select';
-    sourceSelect.dataset.type = 'source';
-
-    const modelSelect = document.createElement('select');
-    modelSelect.className = 'pipeline-config-select';
-    modelSelect.dataset.type = 'model';
-
-    // When source changes, repopulate the model select
-    sourceSelect.addEventListener('change', () => {
-      const sourceId = sourceSelect.value;
-      const allSrc = typeof sources !== 'undefined' ? sources : [];
-      const source = allSrc.find(s => s.id === sourceId);
-      populateModelSelect(modelSelect, source?.models ?? [], phase, source?.capacity ?? 'medium', source?.selectedModel);
-    });
-
-    const thinkingToggle = document.createElement('button');
-    thinkingToggle.className = 'pipeline-thinking-toggle pipeline-thinking-toggle--on';
-    thinkingToggle.dataset.value = 'true';
-    thinkingToggle.textContent = '🧠 On';
-    thinkingToggle.addEventListener('click', () => {
-      const isOn = thinkingToggle.dataset.value === 'true';
-      thinkingToggle.dataset.value = isOn ? 'false' : 'true';
-      thinkingToggle.textContent = isOn ? '○ Off' : '🧠 On';
-      thinkingToggle.className = isOn
-        ? 'pipeline-thinking-toggle pipeline-thinking-toggle--off'
-        : 'pipeline-thinking-toggle pipeline-thinking-toggle--on';
-    });
-
-    row.append(nameEl, sourceSelect, modelSelect, thinkingToggle);
-    grid.appendChild(row);
-    phaseRows[phase] = { row, sourceSelect, modelSelect, thinkingToggle };
-  }
-
-  details.appendChild(grid);
-
-  /**
-   * Repopulates source and model selects from current source list.
-   * Called on sources-changed and on init.
-   */
-  function refresh(allSources) {
-    const connected = (allSources ?? []).filter(s => s.enabled && s.status === 'connected');
-
-    for (const phase of PIPELINE_PHASES) {
-      const { sourceSelect, modelSelect } = phaseRows[phase];
-      const prevSourceId = sourceSelect.value;
-
-      sourceSelect.replaceChildren();
-
-      if (connected.length === 0) {
-        const opt = document.createElement('option');
-        opt.value = '';
-        opt.textContent = 'No sources connected';
-        sourceSelect.appendChild(opt);
-        modelSelect.replaceChildren();
-        continue;
-      }
-
-      // Auto-pick the best source for this phase
-      const autoSource = pipelinePickSource(phase, allSources);
-
-      for (const src of connected) {
-        const opt = document.createElement('option');
-        opt.value = src.id;
-        const lbl = typeof displayLabel === 'function' ? displayLabel(src) : src.url;
-        const cap = src.capacity ?? 'medium';
-        opt.textContent = `${lbl} [${cap}]`;
-        sourceSelect.appendChild(opt);
-      }
-
-      // Restore previous selection if still connected, else use auto-pick
-      const restore = (prevSourceId && connected.some(s => s.id === prevSourceId))
-        ? prevSourceId
-        : (autoSource?.id ?? connected[0]?.id ?? '');
-      sourceSelect.value = restore;
-
-      const selectedSrc = connected.find(s => s.id === restore) ?? connected[0];
-      populateModelSelect(modelSelect, selectedSrc?.models ?? [], phase, selectedSrc?.capacity ?? 'medium', selectedSrc?.selectedModel);
-    }
-  }
-
-  return { el: details, refresh, getPhaseRows: () => phaseRows };
+function phaseOutputOrder(project) {
+  return enabledProjectPhases(project).map(phase => ({ id: phase.id, label: phase.label, type: phase.type }));
 }
 
-/**
- * Populates a model select with the available models for a phase,
- * pre-selecting the capacity-appropriate default.
- */
-function populateModelSelect(select, models, phase, capacity, currentModel) {
-  select.replaceChildren();
-  if (!models.length) {
-    const opt = document.createElement('option');
-    opt.value = currentModel ?? '';
-    opt.textContent = currentModel ?? '(no models)';
-    select.appendChild(opt);
-    return;
-  }
-
-  const preferred = pipelineFallbackModel(phase, models, capacity);
-
-  for (const m of models) {
-    const opt = document.createElement('option');
-    opt.value = m;
-    opt.textContent = m;
-    select.appendChild(opt);
-  }
-
-  select.value = preferred || models[0];
-}
-
-// ─── Run Config Builder ───────────────────────────────────────────────────────
-
-/**
- * Reads the config panel UI state and builds the phaseOverrides payload
- * for the pipeline API request.
- *
- * @param {ReturnType<buildConfigPanel>['getPhaseRows']} getPhaseRows
- * @returns {Record<string, { model: string, thinkingEnabled: boolean, sourceUrl: string }>}
- */
-function buildRunConfig(getPhaseRows) {
-  const allSrc = typeof sources !== 'undefined' ? sources : [];
-  const rows = getPhaseRows();
-  const config = {};
-
-  for (const phase of PIPELINE_PHASES) {
-    const { sourceSelect, modelSelect, thinkingToggle } = rows[phase];
-    const sourceId = sourceSelect.value;
-    const source = allSrc.find(s => s.id === sourceId);
-
-    config[phase] = {
-      model: modelSelect.value || (source?.selectedModel ?? ''),
-      thinkingEnabled: thinkingToggle.dataset.value === 'true',
-      sourceUrl: source?.url ?? '',
-    };
-  }
-
-  return config;
-}
-
-// ─── Event Handlers ───────────────────────────────────────────────────────────
-
-/**
- * Handles a single SSE event from the pipeline run stream.
- * Updates the appropriate phase card, accumulates run record.
- */
-function pipelineHandleEvent(event) {
-  const { type, phase } = event;
-  const refs = phase ? phaseRefs[phase] : null;
-
-  switch (type) {
-    case 'phase_start': {
-      if (!refs) break;
-      refs.card.hidden = false;
-      pipelineSetPhaseStatus(phase, 'running');
-      refs.thinkDetails.dataset.streaming = 'true';
-      refs.thinkMeta.textContent = 'Streaming';
-      refs.thinkPreview.textContent = 'Reasoning trace is being collected';
-      pipelineSyncPrimerStatus(`Running ${PHASE_META[phase]?.label ?? phase}…`);
-      // Scroll card into view smoothly
-      refs.card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      break;
-    }
-
-    case 'primer': {
-      pipelinePrimerState.set(event.key, {
-        status: event.status,
-        model: event.model,
-        sourceUrl: event.sourceUrl,
-        message: event.message ?? '',
-      });
-      pipelineSyncPrimerStatus();
-      break;
-    }
-
-    case 'phase_retry': {
-      if (!refs) break;
-      pipelineSetRunStatus(
-        `${PHASE_META[phase]?.label ?? phase} timed out. Re-priming ${pipelineShortSource(event.sourceUrl)} and retrying…`,
-        'info',
-      );
-      refs.thinkDetails.hidden = false;
-      refs.thinkDetails.dataset.streaming = 'true';
-      refs.thinkMeta.textContent = `Retry ${event.attempt}`;
-      break;
-    }
-
-    case 'chunk': {
-      if (!refs) break;
-      const { channel, delta } = event;
-      if (!delta) break;
-
-      if (channel === 'thinking') {
-        refs.thinkDetails.hidden = false;
-        refs.thinkDetails.dataset.streaming = 'true';
-        refs.thinkMeta.textContent = 'Streaming';
-
-        const currentThinking = refs.thinkEl.dataset.raw ?? '';
-        const nextThinking = currentThinking + delta;
-        refs.thinkEl.dataset.raw = nextThinking;
-        refs.thinkEl.classList.add('thinking-content--live');
-
-        const lastThinking = refs.thinkEl.lastChild;
-        if (lastThinking?.nodeType === Node.TEXT_NODE) {
-          lastThinking.textContent += delta;
-        } else {
-          refs.thinkEl.appendChild(document.createTextNode(delta));
-        }
-
-        refs.thinkPreview.textContent = pipelinePreviewText(nextThinking) || 'Reasoning trace available';
-        break;
-      }
-
-      const currentText = refs.streamEl.dataset.raw ?? '';
-      const nextText = currentText + delta;
-      refs.streamEl.dataset.raw = nextText;
-      refs.streamEl.classList.add('pipeline-stream--live');
-
-      const last = refs.streamEl.lastChild;
-      if (last?.nodeType === Node.TEXT_NODE) {
-        last.textContent += delta;
-      } else {
-        refs.streamEl.appendChild(document.createTextNode(delta));
-      }
-
-      const charLen = nextText.length;
-      refs.charCountEl.textContent = charLen > 0 ? `${charLen.toLocaleString()} chars` : '';
-      break;
-    }
-
-    case 'phase_complete': {
-      if (!refs) break;
-      const { record, skipped } = event;
-
-      // If this phase was skipped (retry path), mark it differently
-      if (skipped) {
-        pipelineSetPhaseStatus(phase, 'skipped');
-        refs.streamEl.replaceChildren(renderMarkdown(record.strippedOutput ?? ''));
-        refs.card.hidden = false;
-        break;
-      }
-
-      pipelineSetPhaseStatus(phase, 'complete');
-      refs.thinkDetails.dataset.streaming = 'false';
-
-      // Duration badge
-      if (record.durationMs != null) {
-        refs.durationEl.textContent = `${(record.durationMs / 1000).toFixed(1)}s`;
-        refs.durationEl.hidden = false;
-      }
-
-      // Re-render output as markdown (replaces raw streaming text nodes)
-      refs.streamEl.dataset.raw = record.strippedOutput ?? '';
-      refs.streamEl.classList.remove('pipeline-stream--live');
-      refs.streamEl.replaceChildren(renderMarkdown(record.strippedOutput ?? ''));
-
-      const charLen = (record.strippedOutput ?? '').length;
-      refs.charCountEl.textContent = charLen > 0 ? `${charLen.toLocaleString()} chars` : '';
-
-      // Thinking panel — render markdown if present, hide details if not
-      if (record.thinkingContent) {
-        refs.thinkEl.classList.remove('thinking-content--live');
-        refs.thinkEl.dataset.raw = record.thinkingContent;
-        refs.thinkEl.replaceChildren(renderMarkdown(record.thinkingContent));
-        refs.thinkMeta.textContent = 'Available';
-        refs.thinkPreview.textContent = pipelinePreviewText(record.thinkingContent) || 'Reasoning trace available';
-        refs.thinkDetails.hidden = false;
-        refs.thinkDetails.open = false;
-      } else {
-        refs.thinkEl.classList.remove('thinking-content--live');
-        refs.thinkDetails.hidden = true;
-      }
-
-      // Store stripped output for retry context
-      const outputKeys = { optimizer: 'optimizedPrompt', generator: 'generatedOutput', critic: 'critiqueReport' };
-      if (outputKeys[phase]) {
-        pipelinePhaseCtx[outputKeys[phase]] = record.strippedOutput;
-      }
-
-      break;
-    }
-
-    case 'pipeline_complete': {
-      const { run } = event;
-      pipelineCurrentRun = run;
-      pipelineShowFinalOutput(run);
-      pipelinePrimerState = new Map();
-      pipelineSetRunStatus('');
-      break;
-    }
-
-    case 'error': {
-      if (refs) {
-        pipelineSetPhaseStatus(phase, 'error');
-        refs.thinkDetails.dataset.streaming = 'false';
-        const errEl = document.createElement('p');
-        errEl.className = 'message-error';
-        errEl.textContent = `Error: ${event.message}`;
-        refs.streamEl.replaceChildren(errEl);
-        refs.retryBtn.hidden = false;
-      }
-      pipelinePrimerState = new Map();
-      pipelineSetRunStatus(`Phase ${PHASE_META[phase]?.label ?? phase} failed: ${event.message}`, 'error');
-      break;
-    }
-  }
-}
-
-function pipelinePreviewText(text) {
-  return String(text ?? '').replace(/\s+/g, ' ').trim().slice(0, 120);
+function pipelineProjectGlyph(project) {
+  if (pipelineRunningProjectId === project.id) return '…';
+  if (project.hasUpdate) return '🔔';
+  return '◫';
 }
 
 function pipelineShortSource(sourceUrl) {
@@ -661,166 +236,709 @@ function pipelineShortSource(sourceUrl) {
   }
 }
 
-// ─── Phase Status Helpers ─────────────────────────────────────────────────────
-
-const STATUS_LABELS = {
-  pending:  'Pending',
-  running:  'Running…',
-  complete: 'Complete',
-  skipped:  'Skipped',
-  error:    'Error',
-};
-
-function pipelineSetPhaseStatus(phase, status) {
-  const refs = phaseRefs[phase];
-  if (!refs) return;
-  refs.statusBadge.className = `pipeline-status-badge pipeline-status-badge--${status}`;
-  refs.statusBadge.textContent = STATUS_LABELS[status] ?? status;
+function pipelinePreviewText(text) {
+  return String(text ?? '').replace(/\s+/g, ' ').trim().slice(0, 120);
 }
 
-function pipelineSetRunStatus(message, tone = 'info', busy = false) {
-  if (!pipelineRunStatusEl) return;
-  pipelineRunStatusEl.textContent = message;
-  pipelineRunStatusEl.className = `pipeline-run-status pipeline-run-status--${tone}`;
-  pipelineRunStatusEl.dataset.busy = busy ? 'true' : 'false';
-  pipelineRunStatusEl.hidden = !message;
+function pipelineSetStatus(message, tone = 'info', busy = false) {
+  if (!pipelineRefs?.statusEl) return;
+  pipelineRefs.statusEl.textContent = message;
+  pipelineRefs.statusEl.className = `pipeline-run-status pipeline-run-status--${tone}`;
+  pipelineRefs.statusEl.dataset.busy = busy ? 'true' : 'false';
+  pipelineRefs.statusEl.hidden = !message;
 }
 
 function pipelineSyncPrimerStatus(contextMessage = '') {
   const states = [...pipelinePrimerState.values()];
   if (!states.length) {
-    if (contextMessage) pipelineSetRunStatus(contextMessage, 'info');
+    pipelineSetStatus(contextMessage, 'info', false);
     return;
   }
-
   const total = states.length;
   const complete = states.filter(state => state.status === 'complete' || state.status === 'failed').length;
   const failed = states.filter(state => state.status === 'failed').length;
   const busy = complete < total;
-  const base = contextMessage ? `${contextMessage} ` : '';
+  const prefix = contextMessage ? `${contextMessage} ` : '';
   const suffix = failed
-    ? `${complete}/${total} warmed, ${failed} continuing without warm-up`
-    : `${complete}/${total} warmed`;
-
-  pipelineSetRunStatus(`${base}Warming selected endpoints/models… ${suffix}`.trim(), 'info', busy);
-  if (!busy && contextMessage) {
-    pipelineSetRunStatus(contextMessage, 'info');
-  }
+    ? `${complete}/${total} ready, ${failed} continuing without preload`
+    : `${complete}/${total} ready`;
+  pipelineSetStatus(`${prefix}Preparing selected endpoints/models… ${suffix}`.trim(), 'info', busy);
 }
 
-// ─── Final Output ─────────────────────────────────────────────────────────────
+function createProjectButton(project) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = `workspace-item${project.id === activePipelineProjectId ? ' workspace-item--active' : ''}`;
+  button.dataset.status = pipelineRunningProjectId === project.id ? 'processing' : project.hasUpdate ? 'attention' : 'idle';
+  button.addEventListener('click', () => {
+    activePipelineProjectId = project.id;
+    project.hasUpdate = false;
+    savePipelineState();
+    renderPipelinePanel();
+  });
 
-function pipelineShowFinalOutput(run) {
-  if (!pipelineFinalEl || !run) return;
+  const icon = document.createElement('span');
+  icon.className = 'workspace-item-icon';
+  icon.textContent = pipelineProjectGlyph(project);
 
-  pipelineFinalEl.replaceChildren(renderMarkdown(run.finalOutput ?? ''));
+  const copy = document.createElement('span');
+  copy.className = 'workspace-item-copy';
 
-  if (run.runDocumentation && pipelineRunDocsEl) {
-    pipelineRunDocsEl.replaceChildren(renderMarkdown(run.runDocumentation));
-    const docsDetails = pipelineRunDocsEl.closest('details');
-    if (docsDetails) docsDetails.hidden = false;
-  }
+  const title = document.createElement('span');
+  title.className = 'workspace-item-title';
+  title.textContent = project.name || 'Untitled Project';
 
-  if (pipelineOutputActionsEl) pipelineOutputActionsEl.hidden = false;
+  const meta = document.createElement('span');
+  meta.className = 'workspace-item-meta';
+  const enabledCount = enabledProjectPhases(project).length;
+  meta.textContent = pipelineRunningProjectId === project.id
+    ? 'Running'
+    : `${enabledCount} phase${enabledCount === 1 ? '' : 's'}`;
+
+  copy.append(title, meta);
+  button.append(icon, copy);
+  return button;
 }
 
-// ─── Retry From Phase ─────────────────────────────────────────────────────────
+function renderPipelineNav(navEl) {
+  navEl.replaceChildren(...pipelineProjects.map(createProjectButton));
+}
 
-function pipelineRetryFrom(fromPhase) {
-  // Determine which precomputed context to pass
-  // (everything computed before the failed phase)
-  const contextUpTo = {};
-  const outputKeysByPhase = {
-    optimizer: 'optimizedPrompt',
-    generator: 'generatedOutput',
-    critic:    'critiqueReport',
+function movePhase(project, phaseId, direction) {
+  const index = project.phases.findIndex(phase => phase.id === phaseId);
+  const nextIndex = index + direction;
+  if (index < 0 || nextIndex < 0 || nextIndex >= project.phases.length) return;
+  const [phase] = project.phases.splice(index, 1);
+  project.phases.splice(nextIndex, 0, phase);
+  savePipelineState();
+  renderPipelinePanel();
+}
+
+function deletePhase(project, phaseId) {
+  if (project.phases.length <= 1) return;
+  project.phases = project.phases.filter(phase => phase.id !== phaseId);
+  savePipelineState();
+  renderPipelinePanel();
+}
+
+function buildPhaseEditor(project, phase, index) {
+  ensurePhaseSelection(phase);
+  const wrapper = document.createElement('div');
+  wrapper.className = 'pipeline-phase-editor';
+
+  const topRow = document.createElement('div');
+  topRow.className = 'pipeline-phase-editor-top';
+
+  const enabledLabel = document.createElement('label');
+  enabledLabel.className = 'pipeline-phase-enabled';
+  const enabledInput = document.createElement('input');
+  enabledInput.type = 'checkbox';
+  enabledInput.checked = phase.enabled;
+  enabledInput.addEventListener('change', () => {
+    phase.enabled = enabledInput.checked;
+    savePipelineState();
+    renderPipelinePanel();
+  });
+  const enabledText = document.createElement('span');
+  enabledText.textContent = 'On';
+  enabledLabel.append(enabledInput, enabledText);
+
+  const titleInput = document.createElement('input');
+  titleInput.className = 'text-input pipeline-phase-title-input';
+  titleInput.value = phase.label;
+  titleInput.placeholder = 'Phase label';
+  titleInput.addEventListener('input', () => {
+    phase.label = titleInput.value;
+    savePipelineState();
+    renderPipelineNav(pipelineRefs.navEl);
+  });
+
+  const typeSelect = document.createElement('select');
+  typeSelect.className = 'pipeline-config-select';
+  for (const option of [...BUILTIN_PHASES, { type: 'custom', label: 'Custom' }]) {
+    const el = document.createElement('option');
+    el.value = option.type;
+    el.textContent = option.label;
+    el.selected = phase.type === option.type;
+    typeSelect.appendChild(el);
+  }
+  typeSelect.addEventListener('change', () => {
+    phase.type = typeSelect.value;
+    const builtin = BUILTIN_PHASES.find(item => item.type === phase.type);
+    if (builtin && !phase.customInstructions) phase.description = builtin.description;
+    if (!titleInput.value.trim()) phase.label = builtin?.label ?? phase.label;
+    ensurePhaseSelection(phase);
+    savePipelineState();
+    renderPipelinePanel();
+  });
+
+  const personaSelect = document.createElement('select');
+  personaSelect.className = 'pipeline-config-select';
+  const defaultPersona = document.createElement('option');
+  defaultPersona.value = '';
+  defaultPersona.textContent = 'No persona';
+  personaSelect.appendChild(defaultPersona);
+  for (const persona of (typeof personas !== 'undefined' ? personas : [])) {
+    const option = document.createElement('option');
+    option.value = persona.id;
+    option.textContent = [persona.name, persona.title].filter(Boolean).join(' • ') || 'Untitled Persona';
+    option.selected = persona.id === phase.personaId;
+    personaSelect.appendChild(option);
+  }
+  personaSelect.addEventListener('change', () => {
+    phase.personaId = personaSelect.value;
+    savePipelineState();
+  });
+
+  const actionRow = document.createElement('div');
+  actionRow.className = 'pipeline-phase-editor-actions';
+  const upBtn = document.createElement('button');
+  upBtn.type = 'button';
+  upBtn.className = 'btn-icon';
+  upBtn.textContent = '↑';
+  upBtn.disabled = index === 0;
+  upBtn.addEventListener('click', () => movePhase(project, phase.id, -1));
+  const downBtn = document.createElement('button');
+  downBtn.type = 'button';
+  downBtn.className = 'btn-icon';
+  downBtn.textContent = '↓';
+  downBtn.disabled = index === project.phases.length - 1;
+  downBtn.addEventListener('click', () => movePhase(project, phase.id, 1));
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.className = 'btn-icon btn-remove';
+  removeBtn.textContent = '×';
+  removeBtn.title = 'Remove phase';
+  removeBtn.addEventListener('click', () => deletePhase(project, phase.id));
+  actionRow.append(upBtn, downBtn, removeBtn);
+
+  topRow.append(enabledLabel, titleInput, typeSelect, personaSelect, actionRow);
+
+  const configRow = document.createElement('div');
+  configRow.className = 'pipeline-phase-editor-grid';
+
+  const sourceSelect = document.createElement('select');
+  sourceSelect.className = 'pipeline-config-select';
+  const connected = pipelineConnectedSources();
+  if (!connected.length) {
+    const option = document.createElement('option');
+    option.value = '';
+    option.textContent = 'No connected sources';
+    sourceSelect.appendChild(option);
+  } else {
+    for (const source of connected) {
+      const option = document.createElement('option');
+      option.value = source.id;
+      option.textContent = `${displayLabel(source)} [${source.capacity ?? 'medium'}]`;
+      option.selected = source.id === phase.sourceId;
+      sourceSelect.appendChild(option);
+    }
+  }
+  sourceSelect.addEventListener('change', () => {
+    phase.sourceId = sourceSelect.value;
+    ensurePhaseSelection(phase);
+    savePipelineState();
+    renderPipelinePanel();
+  });
+
+  const source = connected.find(item => item.id === phase.sourceId);
+  const modelSelect = document.createElement('select');
+  modelSelect.className = 'pipeline-config-select';
+  const models = source?.models?.length ? source.models : [phase.model].filter(Boolean);
+  if (!models.length) {
+    const option = document.createElement('option');
+    option.value = '';
+    option.textContent = '(no models)';
+    modelSelect.appendChild(option);
+  } else {
+    for (const model of models) {
+      const option = document.createElement('option');
+      option.value = model;
+      option.textContent = model;
+      option.selected = model === phase.model;
+      modelSelect.appendChild(option);
+    }
+  }
+  modelSelect.addEventListener('change', () => {
+    phase.model = modelSelect.value;
+    savePipelineState();
+  });
+
+  const thinkingToggle = document.createElement('button');
+  thinkingToggle.type = 'button';
+  thinkingToggle.className = `pipeline-thinking-toggle ${phase.thinkingEnabled ? 'pipeline-thinking-toggle--on' : 'pipeline-thinking-toggle--off'}`;
+  thinkingToggle.textContent = phase.thinkingEnabled ? '🧠 On' : '○ Off';
+  thinkingToggle.addEventListener('click', () => {
+    phase.thinkingEnabled = !phase.thinkingEnabled;
+    savePipelineState();
+    renderPipelinePanel();
+  });
+
+  configRow.append(
+    pipelineField('Source', sourceSelect),
+    pipelineField('Model', modelSelect),
+    pipelineField('Thinking', thinkingToggle),
+  );
+
+  wrapper.append(topRow, configRow);
+
+  if (phase.type === 'custom') {
+    const customArea = document.createElement('textarea');
+    customArea.className = 'pipeline-textarea pipeline-phase-instructions';
+    customArea.rows = 4;
+    customArea.placeholder = 'Describe what this custom phase should do with the current working material.';
+    customArea.value = phase.customInstructions;
+    customArea.addEventListener('input', () => {
+      phase.customInstructions = customArea.value;
+      savePipelineState();
+    });
+    wrapper.append(pipelineField('Custom Instructions', customArea));
+  } else {
+    const hint = document.createElement('p');
+    hint.className = 'pipeline-phase-hint';
+    hint.textContent = BUILTIN_PHASES.find(item => item.type === phase.type)?.description ?? '';
+    wrapper.appendChild(hint);
+  }
+
+  return wrapper;
+}
+
+function pipelineField(label, control) {
+  const field = document.createElement('label');
+  field.className = 'pipeline-phase-field';
+  const title = document.createElement('span');
+  title.className = 'field-label';
+  title.textContent = label;
+  field.append(title, control);
+  return field;
+}
+
+function buildPhaseOutputCard(project, phaseMeta) {
+  const record = project.currentRun?.phases?.[phaseMeta.id] ?? null;
+  const details = document.createElement('details');
+  details.className = 'pipeline-phase-card';
+  details.open = false;
+
+  const summary = document.createElement('summary');
+  summary.className = 'pipeline-phase-summary';
+  const title = document.createElement('span');
+  title.className = 'pipeline-phase-summary-title';
+  title.textContent = phaseMeta.label;
+  const status = document.createElement('span');
+  status.className = `pipeline-status-badge pipeline-status-badge--${record?.status ?? 'pending'}`;
+  status.textContent = record?.status ?? 'pending';
+  const duration = document.createElement('span');
+  duration.className = 'pipeline-duration';
+  duration.textContent = record?.durationMs ? `${(record.durationMs / 1000).toFixed(1)}s` : '';
+  summary.append(title, status, duration);
+
+  const body = document.createElement('div');
+  body.className = 'pipeline-phase-body';
+
+  const thinkDetails = document.createElement('details');
+  thinkDetails.className = 'thinking-details pipeline-thinking';
+  thinkDetails.hidden = !record?.thinkingContent;
+  thinkDetails.open = false;
+  const thinkSummary = document.createElement('summary');
+  thinkSummary.className = 'thinking-summary';
+  thinkSummary.textContent = 'Thinking';
+  const thinkPanel = document.createElement('div');
+  thinkPanel.className = 'thinking-panel';
+  const thinkInner = document.createElement('div');
+  thinkInner.className = 'thinking-panel-inner';
+  const thinkEl = document.createElement('div');
+  thinkEl.className = 'thinking-content md-content';
+  if (record?.thinkingContent) thinkEl.replaceChildren(renderMarkdown(record.thinkingContent));
+  thinkInner.appendChild(thinkEl);
+  thinkPanel.appendChild(thinkInner);
+  thinkDetails.append(thinkSummary, thinkPanel);
+
+  const output = document.createElement('div');
+  output.className = 'pipeline-stream md-content';
+  if (record?.strippedOutput) output.replaceChildren(renderMarkdown(record.strippedOutput));
+
+  const retryBtn = document.createElement('button');
+  retryBtn.type = 'button';
+  retryBtn.className = 'btn-secondary pipeline-retry-btn';
+  retryBtn.textContent = 'Retry from here';
+  retryBtn.hidden = record?.status !== 'error';
+  retryBtn.addEventListener('click', () => pipelineRetryFrom(project, phaseMeta.id));
+
+  body.append(thinkDetails, output, retryBtn);
+  details.append(summary, body);
+
+  return { details, summary, status, duration, thinkDetails, thinkEl, output, retryBtn };
+}
+
+function renderPipelineResults(project, container) {
+  container.replaceChildren();
+  if (!project.currentRun) {
+    const empty = document.createElement('p');
+    empty.className = 'empty-state';
+    empty.textContent = 'No pipeline output yet. Configure the project and run it to see per-phase results here.';
+    container.appendChild(empty);
+    return { phaseRefs: new Map(), finalDetails: null, finalOutputEl: null, docsDetails: null, docsEl: null };
+  }
+
+  const phaseRefs = new Map();
+  const phasesWrap = document.createElement('div');
+  phasesWrap.className = 'pipeline-phases';
+  for (const phaseMeta of (project.currentRun.phaseOrder ?? phaseOutputOrder(project))) {
+    const refs = buildPhaseOutputCard(project, phaseMeta);
+    phasesWrap.appendChild(refs.details);
+    phaseRefs.set(phaseMeta.id, refs);
+  }
+
+  const finalDetails = document.createElement('details');
+  finalDetails.className = 'pipeline-output-section';
+  finalDetails.open = false;
+  const finalSummary = document.createElement('summary');
+  finalSummary.className = 'pipeline-output-header';
+  finalSummary.textContent = 'Final Output';
+  const finalOutputEl = document.createElement('div');
+  finalOutputEl.className = 'pipeline-final-output md-content';
+  finalOutputEl.replaceChildren(renderMarkdown(project.currentRun.finalOutput ?? ''));
+  finalDetails.append(finalSummary, finalOutputEl);
+
+  const docsDetails = document.createElement('details');
+  docsDetails.className = 'pipeline-run-docs-details';
+  docsDetails.hidden = !project.currentRun.runDocumentation;
+  docsDetails.open = false;
+  const docsSummary = document.createElement('summary');
+  docsSummary.className = 'pipeline-run-docs-summary';
+  docsSummary.textContent = 'Run Documentation';
+  const docsEl = document.createElement('div');
+  docsEl.className = 'pipeline-run-docs md-content';
+  docsEl.replaceChildren(renderMarkdown(project.currentRun.runDocumentation ?? ''));
+  docsDetails.append(docsSummary, docsEl);
+
+  container.append(phasesWrap, finalDetails, docsDetails);
+  return { phaseRefs, finalDetails, finalOutputEl, docsDetails, docsEl };
+}
+
+function renderPipelineDetail(project, detailEl) {
+  detailEl.replaceChildren();
+  const wrapper = document.createElement('div');
+  wrapper.className = 'pipeline-project-detail';
+
+  const nameInput = document.createElement('input');
+  nameInput.className = 'text-input pipeline-project-name';
+  nameInput.value = project.name;
+  nameInput.placeholder = 'Project name';
+  nameInput.addEventListener('input', () => {
+    project.name = nameInput.value;
+    savePipelineState();
+    renderPipelineNav(pipelineRefs.navEl);
+  });
+
+  const inputArea = document.createElement('textarea');
+  inputArea.className = 'pipeline-textarea';
+  inputArea.rows = 5;
+  inputArea.placeholder = 'Enter the prompt or task for this project.';
+  inputArea.value = project.input;
+  inputArea.addEventListener('input', () => {
+    project.input = inputArea.value;
+    savePipelineState();
+  });
+
+  const phasesSection = document.createElement('div');
+  phasesSection.className = 'pipeline-editor-section';
+  const phasesHeader = document.createElement('div');
+  phasesHeader.className = 'pipeline-section-header';
+  const phasesTitle = document.createElement('h3');
+  phasesTitle.className = 'pipeline-section-title';
+  phasesTitle.textContent = 'Phases';
+  const addPhaseBtn = document.createElement('button');
+  addPhaseBtn.type = 'button';
+  addPhaseBtn.className = 'btn-secondary';
+  addPhaseBtn.textContent = 'Add Phase';
+  addPhaseBtn.addEventListener('click', () => {
+    project.phases.push(makePipelinePhase('custom'));
+    savePipelineState();
+    renderPipelinePanel();
+  });
+  phasesHeader.append(phasesTitle, addPhaseBtn);
+  const phaseList = document.createElement('div');
+  phaseList.className = 'pipeline-phase-editor-list';
+  phaseList.replaceChildren(...project.phases.map((phase, index) => buildPhaseEditor(project, phase, index)));
+  phasesSection.append(phasesHeader, phaseList);
+
+  const runRow = document.createElement('div');
+  runRow.className = 'pipeline-run-row';
+  const runBtn = document.createElement('button');
+  runBtn.type = 'button';
+  runBtn.className = 'btn-primary pipeline-run-btn';
+  runBtn.textContent = '▶ Run Pipeline';
+  runBtn.disabled = pipelineRunning;
+  runBtn.addEventListener('click', () => {
+    if (!pipelineRunning) pipelineStartRun(project);
+  });
+  const stopBtn = document.createElement('button');
+  stopBtn.type = 'button';
+  stopBtn.className = 'btn-stop';
+  stopBtn.textContent = '■ Stop';
+  stopBtn.hidden = !pipelineRunning || pipelineRunningProjectId !== project.id;
+  stopBtn.addEventListener('click', () => pipelineAbortController?.abort());
+  const statusEl = document.createElement('span');
+  statusEl.className = 'pipeline-run-status';
+  statusEl.hidden = true;
+  runRow.append(runBtn, stopBtn, statusEl);
+
+  const resultsSection = document.createElement('div');
+  resultsSection.className = 'pipeline-results-section';
+  const resultRefs = renderPipelineResults(project, resultsSection);
+
+  wrapper.append(
+    pipelineField('Project', nameInput),
+    pipelineField('Prompt Input', inputArea),
+    phasesSection,
+    runRow,
+    resultsSection,
+  );
+
+  detailEl.appendChild(wrapper);
+  pipelineRefs.statusEl = statusEl;
+  pipelineRefs.runBtn = runBtn;
+  pipelineRefs.stopBtn = stopBtn;
+  pipelineRefs.inputEl = inputArea;
+  pipelineRefs.phaseRefs = resultRefs.phaseRefs;
+  pipelineRefs.finalOutputEl = resultRefs.finalOutputEl;
+  pipelineRefs.finalDetails = resultRefs.finalDetails;
+  pipelineRefs.docsDetails = resultRefs.docsDetails;
+  pipelineRefs.docsEl = resultRefs.docsEl;
+}
+
+function renderPipelinePanel() {
+  if (!pipelineMountEl || !pipelineRefs) return;
+  pipelineRefs.shell.classList.toggle('workspace-shell--collapsed', pipelineUiState.navCollapsed);
+  renderPipelineNav(pipelineRefs.navEl);
+  const project = activePipelineProject();
+  if (!project) return;
+  renderPipelineDetail(project, pipelineRefs.detailEl);
+  pipelineSyncPrimerStatus();
+}
+
+function resetProjectRun(project) {
+  project.currentRun = {
+    phaseOrder: phaseOutputOrder(project),
+    phases: {},
+    finalOutput: '',
+    runDocumentation: null,
   };
-
-  for (const phase of PIPELINE_PHASES) {
-    if (phase === fromPhase) break;
-    const key = outputKeysByPhase[phase];
-    if (key && pipelinePhaseCtx[key]) {
-      contextUpTo[key] = pipelinePhaseCtx[key];
-    }
-  }
-
-  // Kick off run with precomputed context
-  pipelineStartRun(contextUpTo);
+  project.phaseContext = { phaseOutputs: {} };
+  pipelinePrimerState = new Map();
+  savePipelineState();
 }
 
-// ─── Run Pipeline ─────────────────────────────────────────────────────────────
-
-/**
- * Starts a pipeline run. If precomputedCtx is provided, earlier phases are
- * skipped (retry-from-failure path). Otherwise all four phases run fresh.
- *
- * @param {object} precomputedCtx
- */
-async function pipelineStartRun(precomputedCtx = {}) {
-  const textarea = document.getElementById('pipeline-textarea');
-  const runBtn = document.getElementById('pipeline-run-btn');
-  const stopBtn = document.getElementById('pipeline-stop-btn');
-
-  const userInput = textarea?.value.trim() ?? '';
-  if (!userInput) {
-    textarea?.focus();
-    return;
+function pipelineRetryFrom(project, fromPhaseId) {
+  const enabled = enabledProjectPhases(project);
+  const index = enabled.findIndex(phase => phase.id === fromPhaseId);
+  if (index < 0) return;
+  const phaseOutputs = {};
+  for (let i = 0; i < index; i += 1) {
+    const record = project.currentRun?.phases?.[enabled[i].id];
+    if (record?.strippedOutput) phaseOutputs[enabled[i].id] = record.strippedOutput;
   }
+  pipelineStartRun(project, { phaseOutputs });
+}
 
-  // Validate at least one source is connected
-  const allSrc = typeof sources !== 'undefined' ? sources : [];
-  const anyConnected = allSrc.some(s => s.status === 'connected' && s.enabled);
-  if (!anyConnected) {
-    pipelineSetRunStatus('Connect at least one Ollama source before running.', 'error');
-    return;
-  }
+function patchActivePhaseStart(phaseId, label) {
+  const refs = pipelineRefs.phaseRefs?.get(phaseId);
+  if (!refs) return;
+  refs.details.hidden = false;
+  refs.status.className = 'pipeline-status-badge pipeline-status-badge--running';
+  refs.status.textContent = 'running';
+  refs.summary.querySelector('.pipeline-phase-summary-title').textContent = label || refs.summary.querySelector('.pipeline-phase-summary-title').textContent;
+}
 
-  // Reset state
-  pipelineRunning = true;
-  pipelineCurrentRun = null;
-  if (Object.keys(precomputedCtx).length === 0) {
-    // Full fresh run — clear all refs and hide cards
-    pipelinePhaseCtx = {};
-    pipelinePrimerState = new Map();
-    for (const phase of PIPELINE_PHASES) {
-      const refs = phaseRefs[phase];
-      if (!refs) continue;
-      refs.card.hidden = true;
-      refs.statusBadge.className = 'pipeline-status-badge pipeline-status-badge--pending';
-      refs.statusBadge.textContent = 'Pending';
-      refs.streamEl.replaceChildren();
-      refs.streamEl.dataset.raw = '';
-      refs.streamEl.classList.remove('pipeline-stream--live');
-      refs.charCountEl.textContent = '';
-      refs.durationEl.hidden = true;
-      refs.thinkDetails.hidden = true;
-      refs.thinkDetails.open = false;
-      refs.thinkDetails.dataset.streaming = 'false';
-      refs.thinkEl.replaceChildren();
-      refs.thinkEl.dataset.raw = '';
-      refs.thinkEl.classList.remove('thinking-content--live');
-      refs.thinkMeta.textContent = 'Hidden by default';
-      refs.thinkPreview.textContent = 'Available when the phase starts';
-      refs.retryBtn.hidden = true;
+function patchActivePhaseChunk(phaseId, channel, delta) {
+  const refs = pipelineRefs.phaseRefs?.get(phaseId);
+  if (!refs || !delta) return;
+  if (channel === 'thinking') {
+    refs.thinkDetails.hidden = false;
+    refs.thinkEl.dataset.raw = (refs.thinkEl.dataset.raw ?? '') + delta;
+    refs.thinkEl.classList.add('thinking-content--live');
+    const last = refs.thinkEl.lastChild;
+    if (last?.nodeType === Node.TEXT_NODE) {
+      last.textContent += delta;
+    } else {
+      refs.thinkEl.appendChild(document.createTextNode(delta));
     }
-    if (pipelineFinalEl) pipelineFinalEl.replaceChildren();
-    if (pipelineRunDocsEl) pipelineRunDocsEl.replaceChildren();
-    if (pipelineOutputActionsEl) pipelineOutputActionsEl.hidden = true;
-    const docsDetails = pipelineRunDocsEl?.closest('details');
-    if (docsDetails) docsDetails.hidden = true;
+    return;
+  }
+  refs.output.dataset.raw = (refs.output.dataset.raw ?? '') + delta;
+  refs.output.classList.add('pipeline-stream--live');
+  const last = refs.output.lastChild;
+  if (last?.nodeType === Node.TEXT_NODE) {
+    last.textContent += delta;
+  } else {
+    refs.output.appendChild(document.createTextNode(delta));
+  }
+}
+
+function patchActivePhaseComplete(phaseId, record, skipped = false) {
+  const refs = pipelineRefs.phaseRefs?.get(phaseId);
+  if (!refs) return;
+  refs.status.className = `pipeline-status-badge pipeline-status-badge--${skipped ? 'skipped' : 'complete'}`;
+  refs.status.textContent = skipped ? 'skipped' : 'complete';
+  refs.duration.textContent = record.durationMs ? `${(record.durationMs / 1000).toFixed(1)}s` : '';
+  refs.output.classList.remove('pipeline-stream--live');
+  refs.output.replaceChildren(renderMarkdown(record.strippedOutput ?? ''));
+  refs.thinkEl.classList.remove('thinking-content--live');
+  if (record.thinkingContent) {
+    refs.thinkDetails.hidden = false;
+    refs.thinkEl.replaceChildren(renderMarkdown(record.thinkingContent));
+  } else {
+    refs.thinkDetails.hidden = true;
+  }
+  refs.retryBtn.hidden = true;
+}
+
+function patchActivePhaseError(phaseId, message) {
+  const refs = pipelineRefs.phaseRefs?.get(phaseId);
+  if (!refs) return;
+  refs.status.className = 'pipeline-status-badge pipeline-status-badge--error';
+  refs.status.textContent = 'error';
+  refs.output.classList.remove('pipeline-stream--live');
+  const err = document.createElement('p');
+  err.className = 'message-error';
+  err.textContent = `Error: ${message}`;
+  refs.output.replaceChildren(err);
+  refs.retryBtn.hidden = false;
+}
+
+function handlePipelineEvent(project, event) {
+  const phaseId = event.phase;
+  const label = event.label;
+  switch (event.type) {
+    case 'primer':
+      pipelinePrimerState.set(event.key, {
+        status: event.status,
+        model: event.model,
+        sourceUrl: event.sourceUrl,
+      });
+      pipelineSyncPrimerStatus();
+      break;
+    case 'phase_start':
+      project.currentRun.phases[phaseId] = {
+        id: phaseId,
+        label,
+        type: project.phases.find(phase => phase.id === phaseId)?.type ?? 'custom',
+        status: 'running',
+        rawOutput: '',
+        strippedOutput: '',
+        thinkingContent: '',
+      };
+      if (project.id === activePipelineProjectId) patchActivePhaseStart(phaseId, label);
+      else project.hasUpdate = true;
+      break;
+    case 'chunk': {
+      const record = project.currentRun.phases[phaseId] ??= {
+        id: phaseId,
+        label,
+        type: project.phases.find(phase => phase.id === phaseId)?.type ?? 'custom',
+        status: 'running',
+        rawOutput: '',
+        strippedOutput: '',
+        thinkingContent: '',
+      };
+      if (event.channel === 'thinking') record.thinkingContent = (record.thinkingContent ?? '') + event.delta;
+      else record.strippedOutput = (record.strippedOutput ?? '') + event.delta;
+      if (project.id === activePipelineProjectId) patchActivePhaseChunk(phaseId, event.channel, event.delta);
+      else project.hasUpdate = true;
+      break;
+    }
+    case 'phase_complete':
+      project.currentRun.phases[phaseId] = event.record;
+      project.phaseContext.phaseOutputs[phaseId] = event.record.strippedOutput ?? '';
+      if (project.id === activePipelineProjectId) patchActivePhaseComplete(phaseId, event.record, event.skipped);
+      else project.hasUpdate = true;
+      break;
+    case 'phase_retry':
+      pipelineSetStatus(`${label || phaseId} timed out. Re-preparing ${pipelineShortSource(event.sourceUrl)} and retrying…`, 'info', true);
+      break;
+    case 'pipeline_complete':
+      project.currentRun = event.run;
+      project.hasUpdate = project.id !== activePipelineProjectId;
+      if (project.id === activePipelineProjectId) {
+        if (pipelineRefs.finalOutputEl) {
+          pipelineRefs.finalOutputEl.replaceChildren(renderMarkdown(event.run.finalOutput ?? ''));
+        }
+        if (pipelineRefs.docsDetails && pipelineRefs.docsEl) {
+          pipelineRefs.docsDetails.hidden = !event.run.runDocumentation;
+          pipelineRefs.docsEl.replaceChildren(renderMarkdown(event.run.runDocumentation ?? ''));
+        }
+      }
+      pipelinePrimerState = new Map();
+      pipelineSetStatus('', 'info', false);
+      break;
+    case 'error':
+      if (phaseId) {
+        project.currentRun.phases[phaseId] = {
+          ...(project.currentRun.phases[phaseId] ?? {}),
+          status: 'error',
+          error: event.message,
+        };
+        if (project.id === activePipelineProjectId) patchActivePhaseError(phaseId, event.message);
+      }
+      pipelinePrimerState = new Map();
+      pipelineSetStatus(`Phase ${label || phaseId || 'pipeline'} failed: ${event.message}`, 'error', false);
+      break;
+  }
+  savePipelineState();
+  renderPipelineNav(pipelineRefs.navEl);
+}
+
+async function* readPipelineSse(response) {
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let idx;
+      while ((idx = buffer.indexOf('\n\n')) !== -1) {
+        const block = buffer.slice(0, idx).trim();
+        buffer = buffer.slice(idx + 2);
+        if (!block || block.startsWith(':')) continue;
+        const dataLine = block.split('\n').find(line => line.startsWith('data: '));
+        if (!dataLine) continue;
+        yield JSON.parse(dataLine.slice(6));
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+async function pipelineStartRun(project, precomputedCtx = {}) {
+  if (!project.input.trim()) {
+    if (pipelineRefs.inputEl) pipelineRefs.inputEl.focus();
+    return;
+  }
+  const enabledPhases = enabledProjectPhases(project).map(phaseRunDefinition).filter(phase => phase.sourceUrl && phase.model);
+  if (!enabledPhases.length) {
+    pipelineSetStatus('Enable at least one fully configured phase before running.', 'error', false);
+    return;
   }
 
-  if (runBtn) runBtn.disabled = true;
-  if (stopBtn) stopBtn.hidden = false;
-
-  pipelineSetRunStatus('Pipeline running…', 'info');
+  pipelineRunning = true;
+  pipelineRunningProjectId = project.id;
   pipelineAbortController = new AbortController();
+  resetProjectRun(project);
+  renderPipelinePanel();
+  pipelineSetStatus('Starting pipeline…', 'info', true);
+
+  const requestBody = JSON.stringify({
+    userInput: project.input.trim(),
+    phaseDefinitions: enabledPhases,
+    precomputedCtx,
+  });
 
   try {
-    const phaseOverrides = pipelineRunConfigRef ? buildRunConfig(pipelineRunConfigRef) : {};
-    const requestBody = JSON.stringify({ userInput, phaseOverrides, precomputedCtx });
     let seenEvents = 0;
-
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
         const response = await fetch('/api/pipeline/run', {
@@ -829,204 +947,107 @@ async function pipelineStartRun(precomputedCtx = {}) {
           body: requestBody,
           signal: pipelineAbortController.signal,
         });
-
         if (!response.ok) {
           const body = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
           throw new Error(body.error ?? `HTTP ${response.status}`);
         }
-
         for await (const event of readPipelineSse(response)) {
           seenEvents += 1;
-          pipelineHandleEvent(event);
+          handlePipelineEvent(project, event);
         }
         break;
       } catch (err) {
-        const isTransientFetchFailure =
+        const isTransient =
           err.name !== 'AbortError' &&
           seenEvents === 0 &&
           attempt === 0 &&
           /load failed|failed to fetch|networkerror/i.test(String(err.message ?? err));
-
-        if (isTransientFetchFailure) {
-          pipelineSetRunStatus('Pipeline connection dropped during startup. Retrying once…', 'info');
+        if (isTransient) {
+          pipelineSetStatus('Pipeline connection dropped during startup. Retrying once…', 'info', true);
           await new Promise(resolve => setTimeout(resolve, PIPELINE_FETCH_RETRY_DELAY_MS));
           continue;
         }
-
         throw err;
       }
     }
-
   } catch (err) {
-    if (err.name !== 'AbortError') {
-      pipelineSetRunStatus(`Pipeline failed: ${err.message}`, 'error');
+    if (err.name === 'AbortError') {
+      pipelineSetStatus('Pipeline stopped.', 'info', false);
     } else {
-      pipelineSetRunStatus('Pipeline stopped.', 'info');
+      pipelineSetStatus(`Pipeline failed: ${err.message}`, 'error', false);
     }
   } finally {
     pipelineRunning = false;
+    pipelineRunningProjectId = null;
     pipelineAbortController = null;
-    if (runBtn) runBtn.disabled = false;
-    if (stopBtn) stopBtn.hidden = true;
+    renderPipelinePanel();
   }
 }
 
-// ─── Export / Copy ────────────────────────────────────────────────────────────
-
-function pipelineExportJson() {
-  if (!pipelineCurrentRun) return;
-  const blob = new Blob([JSON.stringify(pipelineCurrentRun, null, 2)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `orgchart-run-${pipelineCurrentRun.id?.slice(0, 8) ?? 'export'}.json`;
-  a.click();
-  URL.revokeObjectURL(a.href);
+function createPipelineProject() {
+  const project = makePipelineProject();
+  pipelineProjects.push(project);
+  activePipelineProjectId = project.id;
+  savePipelineState();
+  renderPipelinePanel();
 }
 
-async function pipelineCopyFinalOutput() {
-  if (!pipelineCurrentRun?.finalOutput) return;
-  try {
-    await navigator.clipboard.writeText(pipelineCurrentRun.finalOutput);
-  } catch {
-    // Clipboard API unavailable — silently ignore (user can copy manually)
-  }
+function togglePipelineNav() {
+  pipelineUiState.navCollapsed = !pipelineUiState.navCollapsed;
+  savePipelineState();
+  renderPipelinePanel();
 }
 
-// ─── Init ─────────────────────────────────────────────────────────────────────
-
-// Stored so buildRunConfig() can read phase rows from outside pipelineInit
-let pipelineRunConfigRef = null;
-
-/**
- * Initialises the Multiphase Lab panel.
- * Follows the same signature as chatInit().
- *
- * @param {HTMLElement} mountEl - The panel content div (panel-content)
- * @param {{ actionsLeft: HTMLElement, actionsRight: HTMLElement }} panelActions
- */
 function pipelineInit(mountEl, panelActions) {
+  loadPipelineState();
+  pipelineMountEl = mountEl;
   mountEl.className = 'pipeline-body';
 
-  // ── Input area ────────────────────────────────────────────────────────────
-  const inputSection = document.createElement('div');
-  inputSection.className = 'pipeline-input-section';
+  panelActions.actionsLeft.replaceChildren();
+  panelActions.actionsRight.replaceChildren();
 
-  const inputLabel = document.createElement('label');
-  inputLabel.className = 'field-label';
-  inputLabel.htmlFor = 'pipeline-textarea';
-  inputLabel.textContent = 'Prompt Input';
+  const navToggleBtn = document.createElement('button');
+  navToggleBtn.type = 'button';
+  navToggleBtn.className = 'btn-icon';
+  navToggleBtn.textContent = '↔';
+  navToggleBtn.title = 'Collapse or expand project sidebar';
+  navToggleBtn.addEventListener('click', togglePipelineNav);
 
-  const textarea = document.createElement('textarea');
-  textarea.id = 'pipeline-textarea';
-  textarea.className = 'pipeline-textarea';
-  textarea.rows = 5;
-  textarea.placeholder = 'Enter your raw prompt or task description. The pipeline will optimize, generate, critique, and synthesize it through four sequential agent phases.';
+  const addProjectBtn = document.createElement('button');
+  addProjectBtn.type = 'button';
+  addProjectBtn.className = 'btn-icon';
+  addProjectBtn.textContent = '+';
+  addProjectBtn.title = 'Add project';
+  addProjectBtn.addEventListener('click', createPipelineProject);
 
-  const runRow = document.createElement('div');
-  runRow.className = 'pipeline-run-row';
+  panelActions.actionsLeft.appendChild(navToggleBtn);
+  panelActions.actionsRight.appendChild(addProjectBtn);
 
-  const runBtn = document.createElement('button');
-  runBtn.id = 'pipeline-run-btn';
-  runBtn.className = 'btn-primary pipeline-run-btn';
-  runBtn.textContent = '▶ Run Pipeline';
-  runBtn.addEventListener('click', () => { if (!pipelineRunning) pipelineStartRun(); });
+  const shell = document.createElement('div');
+  shell.className = 'workspace-shell pipeline-shell';
+  const navEl = document.createElement('div');
+  navEl.className = 'workspace-nav';
+  const detailEl = document.createElement('div');
+  detailEl.className = 'workspace-detail pipeline-workspace-detail';
+  shell.append(navEl, detailEl);
+  mountEl.replaceChildren(shell);
 
-  const stopBtn = document.createElement('button');
-  stopBtn.id = 'pipeline-stop-btn';
-  stopBtn.className = 'btn-stop hidden';
-  stopBtn.textContent = '■ Stop';
-  stopBtn.hidden = true;
-  stopBtn.addEventListener('click', () => { if (pipelineAbortController) pipelineAbortController.abort(); });
+  pipelineRefs = {
+    shell,
+    navEl,
+    detailEl,
+    statusEl: null,
+    runBtn: null,
+    stopBtn: null,
+    inputEl: null,
+    phaseRefs: new Map(),
+    finalOutputEl: null,
+    finalDetails: null,
+    docsDetails: null,
+    docsEl: null,
+  };
 
-  const runStatus = document.createElement('span');
-  runStatus.id = 'pipeline-run-status';
-  runStatus.className = 'pipeline-run-status';
-  runStatus.hidden = true;
-  pipelineRunStatusEl = runStatus;
-
-  runRow.append(runBtn, stopBtn, runStatus);
-
-  // ── Config panel ──────────────────────────────────────────────────────────
-  const { el: configEl, refresh: configRefresh, getPhaseRows } = buildConfigPanel();
-  pipelineRunConfigRef = getPhaseRows;
-
-  inputSection.append(inputLabel, textarea, configEl, runRow);
-
-  // ── Phase cards ───────────────────────────────────────────────────────────
-  const phaseSection = document.createElement('div');
-  phaseSection.className = 'pipeline-phases';
-  phaseSection.id = 'pipeline-phases';
-
-  for (const phase of PIPELINE_PHASES) {
-    const card = buildPhaseCard(phase);
-    phaseSection.appendChild(card);
-  }
-
-  // ── Final output section ──────────────────────────────────────────────────
-  const outputSection = document.createElement('div');
-  outputSection.className = 'pipeline-output-section';
-  outputSection.id = 'pipeline-output';
-
-  const outputHeader = document.createElement('div');
-  outputHeader.className = 'pipeline-output-header';
-
-  const outputTitle = document.createElement('h3');
-  outputTitle.className = 'pipeline-output-title';
-  outputTitle.textContent = 'Final Output';
-
-  outputHeader.appendChild(outputTitle);
-
-  const finalOutput = document.createElement('div');
-  finalOutput.className = 'pipeline-final-output md-content';
-  finalOutput.id = 'pipeline-final-output';
-  pipelineFinalEl = finalOutput;
-
-  // Run Documentation (collapsible)
-  const docsDetails = document.createElement('details');
-  docsDetails.className = 'pipeline-run-docs-details';
-  docsDetails.hidden = true;
-
-  const docsSummary = document.createElement('summary');
-  docsSummary.className = 'pipeline-run-docs-summary';
-  docsSummary.textContent = '📋 Run Documentation';
-
-  const runDocs = document.createElement('div');
-  runDocs.className = 'pipeline-run-docs md-content';
-  pipelineRunDocsEl = runDocs;
-
-  docsDetails.append(docsSummary, runDocs);
-
-  // Output action buttons
-  const outputActions = document.createElement('div');
-  outputActions.className = 'pipeline-output-actions';
-  outputActions.hidden = true;
-  pipelineOutputActionsEl = outputActions;
-
-  const copyBtn = document.createElement('button');
-  copyBtn.className = 'btn-secondary';
-  copyBtn.textContent = 'Copy Final Output';
-  copyBtn.addEventListener('click', pipelineCopyFinalOutput);
-
-  const exportBtn = document.createElement('button');
-  exportBtn.className = 'btn-secondary';
-  exportBtn.textContent = 'Export Run JSON';
-  exportBtn.addEventListener('click', pipelineExportJson);
-
-  const runAgainBtn = document.createElement('button');
-  runAgainBtn.className = 'btn-primary';
-  runAgainBtn.textContent = 'Run Again';
-  runAgainBtn.addEventListener('click', () => { if (!pipelineRunning) pipelineStartRun(); });
-
-  outputActions.append(copyBtn, exportBtn, runAgainBtn);
-  outputSection.append(outputHeader, finalOutput, docsDetails, outputActions);
-
-  mountEl.append(inputSection, phaseSection, outputSection);
-
-  // ── Sources-changed listener ───────────────────────────────────────────────
-  document.addEventListener('sources-changed', e => {
-    configRefresh(e.detail.sources);
-  });
-
-  // Initial population from already-loaded sources
-  configRefresh(typeof sources !== 'undefined' ? sources : []);
+  renderPipelinePanel();
+  document.addEventListener('sources-changed', () => renderPipelinePanel());
+  document.addEventListener('personas-changed', () => renderPipelinePanel());
 }

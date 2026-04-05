@@ -2213,6 +2213,19 @@ h1 {
   .meeting-debug-grid {
     grid-template-columns: 1fr 1fr;
   }
+
+  .pipeline-phase-editor-top {
+    grid-template-columns: minmax(0, 1fr) minmax(140px, 0.8fr) minmax(140px, 0.9fr);
+  }
+
+  .pipeline-phase-editor-top .pipeline-phase-enabled,
+  .pipeline-phase-editor-top .pipeline-phase-editor-actions {
+    grid-column: span 3;
+  }
+
+  .pipeline-phase-editor-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 700px) {
@@ -2240,6 +2253,15 @@ h1 {
 
   .workspace-shell--collapsed .workspace-item-copy {
     display: flex;
+  }
+
+  .pipeline-phase-editor-top {
+    grid-template-columns: 1fr;
+  }
+
+  .pipeline-phase-editor-top .pipeline-phase-enabled,
+  .pipeline-phase-editor-top .pipeline-phase-editor-actions {
+    grid-column: auto;
   }
 }
 
@@ -2333,6 +2355,171 @@ h1 {
   0% { transform: translateX(0); opacity: 0.35; }
   40% { transform: translateX(2px); opacity: 1; }
   100% { transform: translateX(0); opacity: 0.35; }
+}
+
+.pipeline-shell {
+  min-height: 720px;
+}
+
+.pipeline-workspace-detail {
+  display: flex;
+  flex-direction: column;
+}
+
+.pipeline-project-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pipeline-project-name {
+  width: 100%;
+}
+
+.pipeline-editor-section,
+.pipeline-results-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pipeline-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pipeline-section-title {
+  margin: 0;
+  font-size: 13px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.pipeline-phase-editor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pipeline-phase-editor {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pipeline-phase-editor-top {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1.2fr) minmax(140px, 0.8fr) minmax(160px, 0.9fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.pipeline-phase-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.pipeline-phase-enabled {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.pipeline-phase-title-input {
+  min-width: 0;
+}
+
+.pipeline-phase-editor-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.pipeline-phase-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pipeline-phase-instructions {
+  min-height: 110px;
+}
+
+.pipeline-phase-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.pipeline-phase-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  list-style: none;
+  cursor: pointer;
+  padding: 12px 14px;
+}
+
+.pipeline-phase-summary::-webkit-details-marker {
+  display: none;
+}
+
+.pipeline-phase-summary::before {
+  content: '▸';
+  color: var(--text-dim);
+  transition: transform 0.18s ease;
+}
+
+.pipeline-phase-card[open] > .pipeline-phase-summary::before,
+.pipeline-output-section[open] > .pipeline-output-header::before,
+.pipeline-run-docs-details[open] > .pipeline-run-docs-summary::before {
+  transform: rotate(90deg);
+}
+
+.pipeline-phase-summary-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.pipeline-phase-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 14px 14px;
+}
+
+.pipeline-output-section > .pipeline-output-header,
+.pipeline-run-docs-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.pipeline-output-section > .pipeline-output-header::-webkit-details-marker,
+.pipeline-run-docs-summary::-webkit-details-marker {
+  display: none;
+}
+
+.pipeline-output-section > .pipeline-output-header::before,
+.pipeline-run-docs-summary::before {
+  content: '▸';
+  color: var(--text-dim);
+  transition: transform 0.18s ease;
 }
 
 /* ─── Config details panel ───────────────────────────────────────────────────── */

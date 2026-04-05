@@ -140,7 +140,7 @@ function json(data, status = 200) {
 // ─── Pipeline SSE Endpoint ───────────────────────────────────────────────────
 // POST /api/pipeline/run
 //
-// Accepts { userInput, phaseOverrides? } and streams pipeline progress back as
+// Accepts { userInput, phaseOverrides?, phaseDefinitions? } and streams pipeline progress back as
 // Server-Sent Events. Each event is a JSON-encoded object on a `data:` line.
 //
 // SSE event types: primer | phase_start | chunk | phase_retry | phase_complete | pipeline_complete | error
@@ -158,6 +158,7 @@ async function handlePipelineRun(req) {
   if (!userInput) return json({ error: 'userInput is required' }, 400);
 
   const phaseOverrides = body.phaseOverrides ?? {};
+  const phaseDefinitions = Array.isArray(body.phaseDefinitions) ? body.phaseDefinitions : [];
   const precomputedCtx = body.precomputedCtx ?? {};
   const requestId = nextRequestSeq++;
   console.log(`[pipeline ${requestId}] start input_len=${userInput.length}`);
@@ -179,7 +180,7 @@ async function handlePipelineRun(req) {
       };
 
       try {
-        await runPipeline(userInput, phaseOverrides, send, precomputedCtx);
+        await runPipeline(userInput, phaseOverrides, send, precomputedCtx, phaseDefinitions);
         console.log(`[pipeline ${requestId}] complete`);
       } catch (err) {
         console.error(`[pipeline ${requestId}] fatal`, err.message);
