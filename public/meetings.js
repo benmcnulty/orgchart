@@ -60,11 +60,24 @@ async function* readNdjsonStream(response) {
 
 // ─── Meetings ────────────────────────────────────────────────────────────────
 
+// Meeting class values: general | executive | departmental | team | project | review | retrospective | planning
+const MEETING_CLASSES = [
+  ['general', 'General'],
+  ['executive', 'Executive'],
+  ['departmental', 'Departmental'],
+  ['team', 'Team'],
+  ['project', 'Project'],
+  ['review', 'Review'],
+  ['retrospective', 'Retrospective'],
+  ['planning', 'Planning'],
+];
+
 function makeMeeting() {
   const seq = groupChat.nextMeetingSeq++;
   return {
     id: `meeting-${seq}`,
     title: `Meeting ${seq}`,
+    class: 'general', // WS6: meeting classification
     topic: '',
     participants: [],
     auto: false,
@@ -811,11 +824,13 @@ function hydrateMeetingEditor() {
 
   const titleEl = document.getElementById('meeting-title');
   const topicEl = document.getElementById('meeting-topic');
+  const classEl = document.getElementById('meeting-class');
   const autoEl = document.getElementById('meeting-auto');
   const boardEl = document.getElementById('meeting-board-note');
 
   if (titleEl) titleEl.value = meeting.title;
   if (topicEl) topicEl.value = meeting.topic;
+  if (classEl) classEl.value = meeting.class ?? 'general';
   if (autoEl) {
     autoEl.checked = meeting.auto;
     autoEl.disabled = !automationEnabled;
@@ -884,8 +899,30 @@ function renderGroupChatPanel(body, actionsLeft, actionsRight) {
     meeting.title = titleInput.value || 'Untitled Meeting';
     renderMeetingSelector();
   });
+  // ── Meeting class selector ───────────────────────��─────────────────────────
+  const classField = document.createElement('div');
+  classField.className = 'group-chat-field';
+  const classLabel = document.createElement('label');
+  classLabel.className = 'field-label';
+  classLabel.htmlFor = 'meeting-class';
+  classLabel.textContent = 'Meeting Type';
+  const classSelect = document.createElement('select');
+  classSelect.id = 'meeting-class';
+  classSelect.className = 'chat-source-select';
+  for (const [value, label] of MEETING_CLASSES) {
+    const opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = label;
+    classSelect.appendChild(opt);
+  }
+  classSelect.addEventListener('change', () => {
+    const meeting = activeMeeting();
+    meeting.class = classSelect.value;
+  });
+  classField.append(classLabel, classSelect);
+
   titleField.append(titleLabel, titleInput);
-  headerRow.append(titleField);
+  headerRow.append(titleField, classField);
 
   const controls = document.createElement('div');
   controls.className = 'group-chat-controls';

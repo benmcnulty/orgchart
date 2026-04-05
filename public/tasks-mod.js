@@ -306,6 +306,15 @@ async function runScheduledTask(task) {
         message: 'Agent long-term memory consolidation finished successfully.',
         source: 'system',
       });
+    } else {
+      // WS6: Extended task types — log intent as a board notification for manual review
+      historyEntry.summary = `Task type '${task.type}' scheduled — no automated runner yet.`;
+      historyEntry.status = 'completed';
+      pushBoardNotification({
+        title: `Task scheduled: ${task.name}`,
+        message: `Task type '${task.type}' was triggered. Manual action may be required.`,
+        source: 'system',
+      });
     }
   } catch (err) {
     historyEntry.status = 'failed';
@@ -560,7 +569,15 @@ function renderTasksPanel(body, actionsLeft, actionsRight) {
   const configGrid = document.createElement('div');
   configGrid.className = 'task-config-grid';
   const selectSpecs = [
-    ['scheduled-task-type', 'Type', [['meeting', 'Meeting'], ['memory-consolidation', 'Memory Consolidation']]],
+    ['scheduled-task-type', 'Type', [
+      ['meeting', 'Meeting'],
+      ['memory-consolidation', 'Memory Consolidation'],
+      ['project-action', 'Project Action'],
+      ['milestone-review', 'Milestone Review'],
+      ['knowledge-update', 'Knowledge Update'],
+      ['technology-update', 'Technology Update'],
+      ['custom-workflow', 'Custom Workflow'],
+    ]],
     ['scheduled-task-recurrence', 'Recurrence', [['weekly', 'Weekly'], ['daily', 'Daily'], ['once', 'Once']]],
     ['scheduled-task-day', 'Day', [['monday', 'Monday'], ['tuesday', 'Tuesday'], ['wednesday', 'Wednesday'], ['thursday', 'Thursday'], ['friday', 'Friday'], ['saturday', 'Saturday'], ['sunday', 'Sunday']]],
   ];

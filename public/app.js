@@ -328,6 +328,7 @@ function exportSessionSnapshot() {
       meetings: groupChat.meetings.map(meeting => ({
         id: meeting.id,
         title: meeting.title,
+        class: meeting.class ?? 'general',
         topic: meeting.topic,
         participants: [...meeting.participants],
         auto: false,
