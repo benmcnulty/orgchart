@@ -1,14 +1,14 @@
-// presentation.js — Operations dashboard (Presentation section).
+// presentation.js — Board dashboard application.
 // OrgChart: Paper Dolls for Corporate Theater — MIT © 2026 Ben McNulty
 //
-// Renders the live operations dashboard in #section-presentation.
+// Renders the live operations dashboard in #section-board.
 // Pulls data from module globals (sources, personas, groupChat, etc.)
 // resolved at call time — no imports needed.
 
 // ─── Dashboard Init ───────────────────────────────────────────────────────────
 
 function presentationInit() {
-  const section = document.getElementById('section-presentation');
+  const section = document.getElementById('section-board');
   if (!section) return;
 
   const grid = el('div', 'presentation-grid');
@@ -92,7 +92,7 @@ function buildAgentHealthCard() {
     const btn = el('button', 'btn-secondary');
     btn.textContent = 'Configure Agents →';
     btn.addEventListener('click', () => {
-      navigateTo('configuration');
+      navigateTo('organization');
     });
     actions.appendChild(btn);
     body.appendChild(actions);
@@ -123,8 +123,8 @@ function buildAutomationCard() {
 
     const actions = el('div', 'presentation-card-actions');
     const btn = el('button', 'btn-secondary');
-    btn.textContent = 'Manage Tasks →';
-    btn.addEventListener('click', () => navigateTo('configuration'));
+    btn.textContent = 'Open Workflows →';
+    btn.addEventListener('click', () => navigateTo('workflows'));
     actions.appendChild(btn);
     body.appendChild(actions);
   });
@@ -168,8 +168,8 @@ function buildActiveProjectsCard() {
 
     const actions = el('div', 'presentation-card-actions');
     const btn = el('button', 'btn-secondary');
-    btn.textContent = 'View Projects →';
-    btn.addEventListener('click', () => navigateTo('configuration'));
+    btn.textContent = 'View Workflows →';
+    btn.addEventListener('click', () => navigateTo('workflows'));
     actions.appendChild(btn);
     body.appendChild(actions);
   });
@@ -203,8 +203,8 @@ function buildActiveMeetingsCard() {
 
     const actions = el('div', 'presentation-card-actions');
     const btn = el('button', 'btn-secondary');
-    btn.textContent = 'Open Meetings →';
-    btn.addEventListener('click', () => navigateTo('diagnostics'));
+    btn.textContent = 'Open Workflows →';
+    btn.addEventListener('click', () => navigateTo('workflows'));
     actions.appendChild(btn);
     body.appendChild(actions);
   });
@@ -236,7 +236,7 @@ function buildUpcomingTasksCard() {
     const actions = el('div', 'presentation-card-actions');
     const btn = el('button', 'btn-secondary');
     btn.textContent = 'Manage Tasks →';
-    btn.addEventListener('click', () => navigateTo('configuration'));
+    btn.addEventListener('click', () => navigateTo('workflows'));
     actions.appendChild(btn);
     body.appendChild(actions);
   });

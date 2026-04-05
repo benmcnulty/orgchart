@@ -15,6 +15,12 @@ let activeScheduledTaskId = null;
 let automationEnabled = false;
 let schedulerTimer = null;
 
+function notifyTasks() {
+  document.dispatchEvent(new CustomEvent('tasks-changed', {
+    detail: { scheduledTasks, automationEnabled },
+  }));
+}
+
 // ─── Persistence ──────────────────────────────────────────────────────────────
 
 function makeScheduledTask() {
@@ -62,6 +68,7 @@ function saveScheduledTasks() {
     tasks: scheduledTasks,
   }));
   renderScheduledTaskList();
+  notifyTasks();
   setSaveIndicator('saved', 'Tasks saved.');
 }
 
@@ -86,6 +93,7 @@ function loadAutomationState() {
 function saveAutomationState() {
   localStorage.setItem(AUTOMATION_STORAGE_KEY, String(automationEnabled));
   syncAutomationButton();
+  notifyTasks();
   setSaveIndicator('saved', automationEnabled ? 'Automation active.' : 'Automation paused.');
 }
 

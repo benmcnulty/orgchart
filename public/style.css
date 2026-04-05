@@ -402,21 +402,84 @@ h1 {
 /* ─── App Shell + Navigation ─────────────────────────────────────────────── */
 
 .app-shell {
-  display: flex;
+  --app-nav-width: 184px;
+  display: grid;
+  grid-template-columns: var(--app-nav-width) minmax(0, 1fr);
   height: calc(100vh - var(--header-height, 81px));
   overflow: hidden;
 }
 
+.app-shell--nav-collapsed {
+  --app-nav-width: 40px;
+}
+
 .app-nav {
-  width: 200px;
-  min-width: 200px;
+  width: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--border);
-  background: var(--surface);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 97%, #fff 3%) 0%, color-mix(in srgb, var(--surface) 90%, var(--bg)) 100%);
   padding: 12px 8px;
   gap: 2px;
   overflow-y: auto;
+  overflow-x: visible;
+  transition: width 0.18s ease, min-width 0.18s ease, padding 0.18s ease;
+  box-shadow: inset -1px 0 0 color-mix(in srgb, var(--border) 75%, transparent), 10px 0 30px rgba(15, 23, 42, 0.04);
+}
+
+.app-nav--collapsed {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 3px;
+}
+
+.app-nav-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 4px 10px;
+}
+
+.app-nav-head-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+}
+
+.app-nav-toggle {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 86%, var(--bg));
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s;
+}
+
+.app-nav-toggle:hover,
+.app-nav-toggle:focus-visible {
+  background: var(--surface-hover);
+  border-color: var(--border-hover);
+  color: var(--text);
+}
+
+.app-nav-toggle:focus-visible,
+.app-nav-item:focus-visible,
+.home-app-tile:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.app-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .app-nav-item {
@@ -424,8 +487,8 @@ h1 {
   align-items: center;
   gap: 10px;
   padding: 9px 12px;
-  border-radius: 6px;
-  border: none;
+  border-radius: 10px;
+  border: 1px solid transparent;
   background: transparent;
   color: var(--text-muted);
   font-size: 13px;
@@ -433,25 +496,31 @@ h1 {
   cursor: pointer;
   text-align: left;
   width: 100%;
-  transition: background 0.12s, color 0.12s;
+  position: relative;
+  transition: background 0.12s, color 0.12s, border-color 0.12s, transform 0.12s;
 }
 
 .app-nav-item:hover {
-  background: var(--bg-hover, rgba(255,255,255,0.06));
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
   color: var(--text);
+  transform: translateX(1px);
 }
 
 .app-nav-item--active {
-  background: var(--accent-muted, rgba(99,102,241,0.15));
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
   color: var(--accent);
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--accent) 68%, transparent);
 }
 
 .app-nav-item-icon {
-  font-size: 16px;
-  line-height: 1;
   flex-shrink: 0;
   width: 20px;
-  text-align: center;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .app-nav-item-label {
@@ -461,18 +530,101 @@ h1 {
   white-space: nowrap;
 }
 
+.app-nav-item-icon-svg,
+.home-app-icon-svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.app-nav--collapsed .app-nav-head {
+  justify-content: center;
+  padding: 0 0 6px;
+}
+
+.app-nav--collapsed .app-nav-head-title {
+  display: none;
+}
+
+.app-nav--collapsed .app-nav-toggle {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+.app-nav--collapsed .app-nav-item {
+  justify-content: center;
+  width: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 7px 0;
+  margin: 0 auto;
+  border-radius: 10px;
+}
+
+.app-nav--collapsed .app-nav-item-label {
+  display: none;
+}
+
+.app-nav--collapsed .app-nav-item-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.app-nav--collapsed .app-nav-item-icon-svg {
+  width: 15px;
+  height: 15px;
+}
+
+.app-nav--collapsed .app-nav-item::after {
+  content: attr(title);
+  position: absolute;
+  left: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%) translateX(-4px);
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--surface) 92%, var(--bg));
+  color: var(--text);
+  font-size: 12px;
+  white-space: nowrap;
+  box-shadow: var(--shadow);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.14s ease, transform 0.14s ease;
+  z-index: 20;
+}
+
+.app-nav--collapsed .app-nav-item:hover::after,
+.app-nav--collapsed .app-nav-item:focus-visible::after {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
 /* ─── Section Containers ─────────────────────────────────────────────────── */
 
 .app-main {
   flex: 1;
   overflow-y: auto;
   padding: 0;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 6%, transparent), transparent 28%),
+    radial-gradient(circle at 12% 0%, rgba(99, 102, 241, 0.05), transparent 30%),
+    linear-gradient(180deg, color-mix(in srgb, var(--bg) 96%, var(--surface)) 0%, var(--bg) 100%);
 }
 
 .app-section {
   display: none;
   padding: 28px 32px 64px;
   min-height: 100%;
+  width: 100%;
+}
+
+.app-shell--nav-collapsed .app-section {
+  padding-left: 10px;
+  padding-right: 20px;
 }
 
 .app-section--active {
@@ -483,8 +635,9 @@ h1 {
 
 .presentation-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: 20px;
+  width: min(100%, 1320px);
 }
 
 .presentation-card {
@@ -613,28 +766,220 @@ h1 {
   flex-wrap: wrap;
 }
 
-/* ─── Configuration Flow ─────────────────────────────────────────────────── */
+/* ─── Home + Setup Apps ──────────────────────────────────────────────────── */
 
-.config-flow-shell {
+.home-shell {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 20px;
+  width: min(100%, 1260px);
+}
+
+.home-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(260px, 0.7fr);
+  gap: 18px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 18%, transparent), transparent 34%),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, var(--bg)) 0%, var(--surface) 100%);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.section-kicker {
+  margin: 0 0 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.home-hero-title,
+.config-app-title {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 28px;
+  line-height: 1.05;
+  color: var(--text);
+}
+
+.home-hero-desc,
+.config-app-meta {
+  margin: 12px 0 0;
+  font-size: 14px;
+  color: var(--text-muted);
+  max-width: 58ch;
+}
+
+.home-hero-status {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.home-stat {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface) 86%, var(--bg));
+}
+
+.home-stat-label {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.home-stat-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.home-launcher,
+.home-focus-grid,
+.config-step-card,
+.readiness-card {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.home-launcher {
+  padding: 22px;
+}
+
+.home-section-title {
+  margin: 0 0 14px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.home-app-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 14px;
+}
+
+.home-app-tile {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding: 18px 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 90%, #fff 4%) 0%, color-mix(in srgb, var(--surface) 82%, var(--bg)) 100%);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+  transition: transform 0.15s, border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.home-app-tile:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.08);
+}
+
+.home-app-icon {
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  color: var(--accent);
+  background:
+    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.32), transparent 28%),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 74%, #fff 5%) 0%, color-mix(in srgb, var(--surface) 82%, var(--bg)) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 6px 14px rgba(15, 23, 42, 0.06);
+}
+
+.home-app-label {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.home-app-meta {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.home-focus-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0;
-  min-height: 100%;
+  overflow: hidden;
 }
 
-.config-flow-sidebar {
+.home-focus-card {
+  display: grid;
+  gap: 12px;
+  padding: 20px;
   border-right: 1px solid var(--border);
-  padding: 12px 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  position: sticky;
-  top: 0;
-  height: fit-content;
 }
 
-.config-flow-detail {
-  padding: 0 0 0 28px;
+.home-focus-card:last-child {
+  border-right: none;
+}
+
+.home-focus-title {
+  margin: 0;
+  font-size: 13px;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text);
+}
+
+.home-focus-body {
+  min-height: 3.2em;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.config-app-shell {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+  width: min(100%, 1260px);
+}
+
+.config-app-sidebar {
+  display: grid;
+  gap: 8px;
+  padding: 18px 14px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+  position: sticky;
+  top: 16px;
+}
+
+.config-app-intro {
+  padding: 6px 6px 10px;
+}
+
+.config-app-detail {
+  min-width: 0;
 }
 
 .config-step-item {
@@ -708,6 +1053,115 @@ h1 {
 .config-step-meta {
   font-size: 11px;
   color: var(--text-muted);
+}
+
+.config-step-card,
+.readiness-card {
+  padding: 24px;
+}
+
+.config-step-card {
+  display: grid;
+  gap: 18px;
+}
+
+.config-step-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.config-step-card-title {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.1;
+  color: var(--text);
+}
+
+.config-step-card-desc {
+  margin: 10px 0 0;
+  max-width: 60ch;
+  color: var(--text-muted);
+}
+
+.config-step-badge {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.config-step-badge--complete {
+  background: rgba(16, 185, 129, 0.16);
+  color: var(--green);
+}
+
+.config-step-badge--incomplete {
+  background: rgba(99, 102, 241, 0.16);
+  color: var(--accent);
+}
+
+.config-step-badge--locked {
+  background: rgba(148, 163, 184, 0.14);
+  color: var(--text-muted);
+}
+
+.config-step-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.config-info-block {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface) 84%, var(--bg));
+}
+
+.config-info-copy {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.config-step-prereqs {
+  display: grid;
+  gap: 10px;
+}
+
+.config-prereq-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.config-prereq-item {
+  padding: 8px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.config-prereq-item--complete {
+  color: var(--green);
+  border-color: color-mix(in srgb, var(--green) 28%, var(--border));
+}
+
+.config-prereq-item--incomplete {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+}
+
+.config-step-actions {
+  display: flex;
+  justify-content: flex-start;
 }
 
 /* ─── Autonomy Readiness ──────────────────────────────────────────────────── */
@@ -851,7 +1305,7 @@ h1 {
 
 .workspace-shell {
   display: grid;
-  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
+  grid-template-columns: clamp(220px, 22vw, 300px) minmax(0, 1fr);
   gap: 0;
   align-items: stretch;
   border: 1px solid var(--border);
@@ -861,7 +1315,7 @@ h1 {
 }
 
 .workspace-shell--collapsed {
-  grid-template-columns: 72px minmax(0, 1fr);
+  grid-template-columns: 56px minmax(0, 1fr);
 }
 
 .workspace-nav {
@@ -2865,6 +3319,10 @@ h1 {
 }
 
 @media (max-width: 720px) {
+  .app-shell {
+    --app-nav-width: 52px;
+  }
+
   .app-header {
     padding: 16px 18px;
   }
@@ -2885,9 +3343,15 @@ h1 {
   }
 
   .app-nav {
-    width: 56px;
-    min-width: 56px;
     padding: 8px 4px;
+  }
+
+  .app-nav-head {
+    padding: 0 2px 8px;
+  }
+
+  .app-nav-head-title {
+    display: none;
   }
 
   .app-nav-item {
@@ -2901,6 +3365,48 @@ h1 {
 
   .app-section {
     padding: 14px 12px 32px;
+  }
+
+  .app-shell--nav-collapsed .app-section {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .home-hero {
+    grid-template-columns: 1fr;
+    padding: 18px;
+  }
+
+  .home-hero-title,
+  .config-app-title {
+    font-size: 24px;
+  }
+
+  .home-focus-grid,
+  .config-step-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .home-focus-card {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .home-focus-card:last-child {
+    border-bottom: none;
+  }
+
+  .config-app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .config-app-sidebar {
+    position: static;
+  }
+
+  .config-step-card-header {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .panel-body {
@@ -3033,7 +3539,9 @@ h1 {
 @media (max-width: 480px) {
   /* Bottom tab bar: nav moves to bottom of viewport */
   .app-shell {
+    --app-nav-width: 100%;
     flex-direction: column;
+    display: flex;
     height: auto;
     min-height: calc(100vh - var(--header-height, 81px));
   }
@@ -3046,8 +3554,9 @@ h1 {
     min-height: 56px;
     flex-direction: row;
     align-items: center;
-    justify-content: space-around;
-    padding: 0;
+    justify-content: flex-start;
+    gap: 4px;
+    padding: 0 8px;
     border-right: none;
     border-top: 1px solid var(--border);
     position: sticky;
@@ -3058,6 +3567,21 @@ h1 {
     overflow-y: hidden;
   }
 
+  .app-nav--collapsed {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .app-nav-head {
+    display: none;
+  }
+
+  .app-nav-list {
+    flex-direction: row;
+    gap: 4px;
+    width: 100%;
+  }
+
   .app-main {
     order: 1;
     flex: 1;
@@ -3065,8 +3589,16 @@ h1 {
     height: auto;
   }
 
+  .home-app-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .home-app-tile {
+    padding: 16px 14px;
+  }
+
   .app-nav-item {
-    flex: 1;
+    flex: 0 0 72px;
     flex-direction: column;
     gap: 2px;
     padding: 6px 4px;
@@ -3090,18 +3622,25 @@ h1 {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 48px;
+    max-width: 64px;
   }
 
   .app-nav-item--active {
     border-radius: 0;
   }
+
+  .app-nav--collapsed .app-nav-item::after {
+    display: none;
+  }
 }
 
 @media (max-width: 1120px) {
-  .app-nav {
-    width: 160px;
-    min-width: 160px;
+  .app-shell {
+    --app-nav-width: 150px;
+  }
+
+  .config-app-shell {
+    grid-template-columns: 240px minmax(0, 1fr);
   }
 
   .workspace-shell {
@@ -3109,7 +3648,7 @@ h1 {
   }
 
   .workspace-shell--collapsed {
-    grid-template-columns: 72px minmax(0, 1fr);
+    grid-template-columns: 56px minmax(0, 1fr);
   }
 
   .meeting-summary-grid {
@@ -3868,7 +4407,10 @@ h1 {
 .section-intro {
   padding: 24px 28px 16px;
   border-bottom: 1px solid var(--border);
-  background: linear-gradient(180deg, var(--surface) 0%, transparent 100%);
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 10%, transparent), transparent 32%),
+    linear-gradient(180deg, var(--surface) 0%, transparent 100%);
+  width: min(100%, 1260px);
 }
 
 .section-intro-title {

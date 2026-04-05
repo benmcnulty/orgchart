@@ -13,6 +13,12 @@ let nextOrganizationSeq = 1;
 let activeOrganizationId = null;
 let activeDepartmentId = null;
 
+function notifyOrganizations() {
+  document.dispatchEvent(new CustomEvent('organizations-changed', {
+    detail: { organizations },
+  }));
+}
+
 // ─── Persistence ──────────────────────────────────────────────────────────────
 
 function makeDefaultOrganization() {
@@ -88,6 +94,7 @@ function saveOrganizations() {
   localStorage.setItem(ORG_STORAGE_KEY, JSON.stringify(organizations));
   renderOrganizationList();
   refreshRoleDependentViews();
+  notifyOrganizations();
   setSaveIndicator('saved', 'Organization saved.');
 }
 

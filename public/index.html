@@ -23,35 +23,38 @@
       <nav class="app-nav" id="app-nav" aria-label="Main navigation"></nav>
 
       <main class="app-main" id="app-main">
-        <!-- Presentation: live operations dashboard -->
-        <section class="app-section" id="section-presentation" aria-label="Presentation"></section>
+        <section class="app-section" id="section-home" aria-label="Home"></section>
 
-        <!-- Configuration: guided setup panels -->
-        <section class="app-section" id="section-configuration" aria-label="Configuration">
-          <div id="panel-sources-mount"></div>
+        <section class="app-section" id="section-board" aria-label="Board"></section>
+
+        <section class="app-section" id="section-setup" aria-label="Setup"></section>
+
+        <section class="app-section" id="section-organization" aria-label="Organization">
           <div id="panel-persona-mount"></div>
-          <div id="panel-skills-mount"></div>
-          <div id="panel-tools-mount"></div>
           <div id="panel-management-mount"></div>
+        </section>
+
+        <section class="app-section" id="section-messages" aria-label="Messages">
+          <div id="panel-chat-mount"></div>
+        </section>
+
+        <section class="app-section" id="section-workflows" aria-label="Workflows">
+          <div id="panel-group-chat-mount"></div>
           <div id="panel-tasks-mount"></div>
           <div id="panel-projects-mount"></div>
         </section>
 
-        <!-- Records: intranet records section -->
-        <section class="app-section" id="section-records" aria-label="Records">
+        <section class="app-section" id="section-resources" aria-label="Resources">
+          <div id="panel-sources-mount"></div>
+          <div id="panel-skills-mount"></div>
+          <div id="panel-tools-mount"></div>
+        </section>
+
+        <section class="app-section" id="section-intranet" aria-label="Intranet">
           <div id="panel-intranet-mount"></div>
         </section>
 
-        <!-- Knowledge: intranet knowledge section (WS2.5: rendered from intranet-mod) -->
-        <section class="app-section" id="section-knowledge" aria-label="Knowledge"></section>
-
-        <!-- Technology: intranet technology section (WS2.5: rendered from intranet-mod) -->
-        <section class="app-section" id="section-technology" aria-label="Technology"></section>
-
-        <!-- Diagnostics: chat, meetings, pipeline -->
         <section class="app-section" id="section-diagnostics" aria-label="Diagnostics">
-          <div id="panel-chat-mount"></div>
-          <div id="panel-group-chat-mount"></div>
           <div id="panel-pipeline-mount"></div>
         </section>
       </main>
@@ -95,11 +98,12 @@
        11. meetings.js          — group chat, meetings, facilitator, draft boards, inference queue
        12. chat.js              — chat UI, depends on renderMarkdown + app.js globals
        13. pipeline.js          — multiphase lab UI, depends on renderMarkdown + app.js globals
-       14. nav.js               — navigation rail controller, navigateTo(), mountNavigation()
-       15. config-flow.js       — guided 10-step configuration checklist
-       16. presentation.js      — operations dashboard for Presentation section
-       17. projects.js          — project & milestone tracking, projectsInit()
-       18. app.js               — panels, calls sourcesInit() + chatInit() + pipelineInit() + mountNavigation() at end of init()
+       14. nav.js               — application launcher rail controller
+       15. config-flow.js       — guided setup application
+       16. presentation.js      — board dashboard application
+       17. home.js              — OS-style home launcher and focus surfaces
+       18. projects.js          — project & milestone tracking, projectsInit()
+       19. app.js               — mounts apps/panels and boots the shared runtime
     -->
     <script src="shared.js"></script>
     <script src="markdown.js"></script>
@@ -117,6 +121,7 @@
     <script src="nav.js"></script>
     <script src="config-flow.js"></script>
     <script src="presentation.js"></script>
+    <script src="home.js"></script>
     <script src="projects.js"></script>
     <script src="app.js"></script>
   </body>

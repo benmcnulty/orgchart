@@ -264,6 +264,18 @@ function hideModalError() {
   document.getElementById('modal-error').classList.add('hidden');
 }
 
+function addSectionIntro(sectionId, title, description) {
+  const section = document.getElementById(sectionId);
+  if (!section) return;
+  const intro = el('div', 'section-intro');
+  const heading = el('h2', 'section-intro-title');
+  heading.textContent = title;
+  const copy = el('p', 'section-intro-desc');
+  copy.textContent = description;
+  intro.append(heading, copy);
+  section.prepend(intro);
+}
+
 // ─── Theme ────────────────────────────────────────────────────────────────────
 
 function initTheme() {
@@ -349,7 +361,7 @@ function exportSessionSnapshot() {
       })),
     },
     projects: typeof projects !== 'undefined' ? projects.map(p => ({ ...p })) : [],
-    activeSection: typeof activeSectionId !== 'undefined' ? activeSectionId : null,
+    activeApp: typeof activeAppId !== 'undefined' ? activeAppId : null,
     configProgress: (() => {
       try { return JSON.parse(localStorage.getItem('orgchart-config-progress') || 'null'); } catch { return null; }
     })(),
@@ -362,7 +374,7 @@ function downloadSessionSnapshot() {
   const href = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = href;
-  link.download = `distributed-inference-session-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+  link.download = `orgchart-session-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -470,8 +482,8 @@ async function applyImportedSession(snapshot) {
   }
 
   // v2: active section
-  if (snapshot.activeSection && typeof navigateTo === 'function') {
-    navigateTo(snapshot.activeSection);
+  if ((snapshot.activeApp || snapshot.activeSection) && typeof navigateTo === 'function') {
+    navigateTo(snapshot.activeApp || snapshot.activeSection);
   }
 
   // v2: config progress
@@ -610,7 +622,7 @@ async function init() {
   await loadProjects();
   syncGroupParticipantsWithPersonas();
 
-  // ── Sources panel ─────────────────────────────────────────────────────────
+  // ── Resources panels ──────────────────────────────────────────────────────
   const {
     panel: sourcesPanel,
     body: sourcesBody,
@@ -621,7 +633,7 @@ async function init() {
   sourcesInit(sourcesBody, sourcesActionsLeft, sourcesActionsRight);
   document.getElementById('panel-sources-mount').appendChild(sourcesPanel);
 
-  // ── Persona panel ─────────────────────────────────────────────────────────
+  // ── Organization panels ───────────────────────────────────────────────────
   const {
     panel: personaPanel,
     body: personaBody,
@@ -631,7 +643,7 @@ async function init() {
   document.getElementById('panel-persona-mount').appendChild(personaPanel);
   renderPersonaPanel(personaBody, personaActionsLeft, personaActionsRight);
 
-  // ── Skills panel ──────────────────────────────────────────────────────────
+  // ── Resources panel: skills ───────────────────────────────────────────────
   const {
     panel: skillsPanel,
     body: skillsBody,
@@ -641,7 +653,7 @@ async function init() {
   document.getElementById('panel-skills-mount').appendChild(skillsPanel);
   renderSkillPanel(skillsBody, skillsActionsLeft, skillsActionsRight);
 
-  // ── Tools panel ───────────────────────────────────────────────────────────
+  // ── Resources panel: tools ────────────────────────────────────────────────
   const {
     panel: toolsPanel,
     body: toolsBody,
@@ -650,7 +662,7 @@ async function init() {
   document.getElementById('panel-tools-mount').appendChild(toolsPanel);
   renderToolsPanel(toolsBody, toolsActionsLeft);
 
-  // ── Management panel ──────────────────────────────────────────────────────
+  // ── Organization panel: management ────────────────────────────────────────
   const {
     panel: managementPanel,
     body: managementBody,
@@ -660,7 +672,7 @@ async function init() {
   document.getElementById('panel-management-mount').appendChild(managementPanel);
   renderManagementPanel(managementBody, managementActionsLeft, managementActionsRight);
 
-  // ── Intranet panel ───────────────────────────────────────────────────────
+  // ── Intranet panel ────────────────────────────────────────────────────────
   const {
     panel: intranetPanel,
     body: intranetBody,
@@ -670,7 +682,7 @@ async function init() {
   document.getElementById('panel-intranet-mount').appendChild(intranetPanel);
   renderIntranetPanel(intranetBody, intranetActionsLeft, intranetActionsRight);
 
-  // ── Chat panel ────────────────────────────────────────────────────────────
+  // ── Messages panel ────────────────────────────────────────────────────────
   const {
     panel: chatPanel,
     body: chatBody,
@@ -681,7 +693,7 @@ async function init() {
   chatInit(chatBody, { actionsLeft: chatActionsLeft, actionsRight: chatActionsRight }); // defined in chat.js
   notifyPersonas();
 
-  // ── Group chat panel ──────────────────────────────────────────────────────
+  // ── Workflows panels ──────────────────────────────────────────────────────
   const {
     panel: groupChatPanel,
     body: groupChatBody,
@@ -691,7 +703,7 @@ async function init() {
   document.getElementById('panel-group-chat-mount').appendChild(groupChatPanel);
   renderGroupChatPanel(groupChatBody, groupChatActionsLeft, groupChatActionsRight);
 
-  // ── Multiphase Lab panel ──────────────────────────────────────────────────
+  // ── Diagnostics panel ─────────────────────────────────────────────────────
   const {
     panel: pipelinePanel,
     body: pipelineBody,
@@ -701,7 +713,7 @@ async function init() {
   document.getElementById('panel-pipeline-mount').appendChild(pipelinePanel);
   pipelineInit(pipelineBody, { actionsLeft: pipelineActionsLeft, actionsRight: pipelineActionsRight }); // defined in pipeline.js
 
-  // ── Tasks panel ───────────────────────────────────────────────────────────
+  // ── Workflows panel: tasks ────────────────────────────────────────────────
   const {
     panel: tasksPanel,
     body: tasksBody,
@@ -711,7 +723,7 @@ async function init() {
   document.getElementById('panel-tasks-mount').appendChild(tasksPanel);
   renderTasksPanel(tasksBody, tasksActionsLeft, tasksActionsRight);
 
-  // ── Projects panel ────────────────────────────────────────────────────────
+  // ── Workflows panel: projects ─────────────────────────────────────────────
   const {
     panel: projectsPanel,
     body: projectsBody,
@@ -741,29 +753,32 @@ async function init() {
   });
   startTaskScheduler();
 
-  // ── Diagnostics section intro ─────────────────────────────────────────────
+  // ── App intros ────────────────────────────────────────────────────────────
+  addSectionIntro('section-organization', 'Organization', 'Manage agents, roles, departments, and staffing so work can route through explicit ownership.');
+  addSectionIntro('section-messages', 'Messages', 'Use direct conversations for ad hoc work, intervention, and progress checks without losing organizational context.');
+  addSectionIntro('section-workflows', 'Workflows', 'Meetings, tasks, and projects all move work from scope through completion.');
+  addSectionIntro('section-resources', 'Resources', 'Inference sources, skills, and tools define what the organization can use and at what cost.');
+  addSectionIntro('section-intranet', 'Intranet', 'Review the current state of organizational knowledge, technology, and operational records.');
+
   const diagnosticsSection = document.getElementById('section-diagnostics');
   if (diagnosticsSection) {
     const diagIntro = el('div', 'section-intro');
     const diagTitle = el('h2', 'section-intro-title');
     diagTitle.textContent = 'Diagnostics';
     const diagDesc = el('p', 'section-intro-desc');
-    diagDesc.textContent = 'Direct chat, meeting operations, and multiphase inference lab. Use these tools to test agents, debug inference sources, and run unstructured sessions.';
+    diagDesc.textContent = 'Inspect deep inference behavior, test multiphase runs, and troubleshoot the autonomous operating environment.';
     diagIntro.append(diagTitle, diagDesc);
     diagnosticsSection.prepend(diagIntro);
   }
 
-  // ── Configuration flow ────────────────────────────────────────────────────
-  // Must run before mountNavigation() so the config-flow shell wraps the
-  // panel mount divs before any section is shown.
+  // ── Guided setup app ──────────────────────────────────────────────────────
   configFlowInit();
 
-  // ── Presentation dashboard ────────────────────────────────────────────────
+  // ── Board dashboard + home launcher ───────────────────────────────────────
   presentationInit();
+  homeInit();
 
   // ── Navigation ────────────────────────────────────────────────────────────
-  // mountNavigation() builds the nav rail and activates the last-used section.
-  // Called after all panels are mounted so panels are already in the DOM.
   mountNavigation();
 }
 
