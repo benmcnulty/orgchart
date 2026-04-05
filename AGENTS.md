@@ -3,7 +3,7 @@
 MIT License © 2026 Ben McNulty
 
 ## Project Structure & Module Organization
-This repo is a small Bun application with no build step. `server.js` serves static files from `public/` and proxies Ollama requests through `/api/proxy` and `/api/stream`. Keep browser code in `public/`: `index.html` is the shell, `app.js` manages sources and layout, `chat.js` handles chat state and streaming, `markdown.js` renders message content, and `style.css` contains the theme and layout tokens.
+This repo is a small Bun application with no build step. `server.js` serves static files from `public/`, proxies Ollama requests, and exposes the OrgChart disk runtime APIs. Keep browser code in `public/`: `index.html` is the shell, `app.js` manages sources, agents, skills, tools, and meetings, `chat.js` handles chat state and streaming, `markdown.js` renders message content, and `style.css` contains the theme and layout tokens. Disk-backed agent state lives under `.orgchart/` and is managed through `lib/orgchart-store.js`, not direct browser writes.
 Shared Gemma/Ollama prompting rules live in `public/inference-policy.js`. Architecture and testing notes for review handoff live under `docs/`.
 
 ## Build, Test, and Development Commands
@@ -16,7 +16,7 @@ Use Bun for local work:
 - `PORT=4000 bun run dev` starts the app on a different port when `3000` is busy.
 
 ## Coding Style & Naming Conventions
-Match the existing plain JavaScript style: ES modules, semicolons, and 2-space indentation. Prefer descriptive camelCase for variables and functions such as `connectSource` and `chatRefreshSourceSelector`; keep constants uppercase, for example `DEFAULT_MODEL`. In frontend code, use DOM APIs like `createElement` and `textContent` instead of `innerHTML` when rendering user-controlled content. Keep CSS tokens and theme values in `public/style.css`, and preserve the current filename pattern of lowercase files in `public/`.
+Match the existing plain JavaScript style: ES modules, semicolons, and 2-space indentation. Prefer descriptive camelCase for variables and functions such as `connectSource` and `chatRefreshSourceSelector`; keep constants uppercase, for example `DEFAULT_MODEL`. In frontend code, use DOM APIs like `createElement` and `textContent` instead of `innerHTML` when rendering user-controlled content. Keep CSS tokens and theme values in `public/style.css`, and preserve the current filename pattern of lowercase files in `public/`. New agents and skills should follow the lowercase Claude-style slug pattern used in `.orgchart/agents/<slug>.md` and `.orgchart/skills/<slug>/SKILL.md`.
 When adding inference behavior, route new workflows through the shared prompt policy instead of inlining new one-off prompts in feature code. Prefer XML-delimited instructions and explicit output contracts for Gemma/Ollama calls.
 
 ## Testing Guidelines
@@ -26,6 +26,7 @@ Automated coverage now lives under `tests/`. For changes, run `bun run check` an
 - theme toggle and persistence
 - chat streaming, attachments, and source selection
 - meeting auto mode, attachments, and draft boards
+- disk-backed agent/skill/tool edits under `.orgchart/`
 - import/export snapshot flow
 
 ## Commit & Pull Request Guidelines

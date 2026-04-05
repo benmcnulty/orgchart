@@ -34,16 +34,37 @@ Paper dolls for corporate theater — disposable, interchangeable, surprisingly 
 - **Multi-session chat** — multiple concurrent conversations per source
 - **Thinking visibility** — inline `<think>` / `<thought>` reasoning traces,
   collapsible per message
-- **Agents** — save system instruction sets; draft with AI assistance
+- **Agents** — disk-backed system instruction sets with reusable skill bindings
+- **Skills** — Claude-style skill bundles with declared tool requirements
+- **Tools** — configurable built-in runtime for web search, web scrape, Wikipedia research, and memory CRUD
+- **Role assignment** — bind agents directly to organization roles
 - **File attachments** — text, markdown, and image support
 - **Context compression** — automatic background summarization when the context
   window fills up
 
+### Management & Tasks
+- **Management** — model one organization with departments, teams, and roles
+- **Executive defaults** — Administration starts with CEO, COO, and CTO roles
+- **Role-aware staffing** — see filled/unfilled roles and generate agents directly from roles
+- **Scheduled tasks** — run meetings or memory consolidation manually or on recurring schedules
+- **Continuity-aware meetings** — repeated meeting tasks carry forward summary and retrospective context
+- **Operations board** — keep scheduled and completed runs visible with collapsible detail
+- **Global Active switch** — one top-level control gates autonomous and scheduled background behavior
+
 ### Meetings & Orchestration
 - **Group chat** — multiple AI participants with distinct agents
-- **Meeting auto-mode** — facilitator routes turns, surfaces consensus and action items
+- **Meeting auto-mode** — facilitator routes turns, surfaces consensus and action items, and now stops when end conditions are met
+- **Retrospectives** — completed meetings distill participant learnings into working memory
+- **Board messages** — facilitator and automation can notify the board through the global bell tray
 - **Draft boards** — collaborative iterative document generation
-- **Session snapshots** — full import/export of all in-flight state
+- **Autosave feedback** — the header save indicator reflects successful or failed local persistence
+
+### Intranet & Custom Tooling
+- **Intranet** — disk-backed `Knowledge`, `Technology`, and `Records` workspaces
+- **Records** — persistent meeting transcripts, completed task runs, and generated artifacts
+- **Knowledge wiki** — markdown-based institutional knowledge for onboarding, process docs, and internal guidance
+- **Technology studio** — reviewed custom JavaScript tools with docs, safe test inputs, and manual run/test surfaces
+- **Technologist skill** — built-in capability set for CTO-style tool design, patching, testing, and documentation
 
 ### Multiphase Lab
 - **Multi-project workspace** — keep multiple lab projects in a shared sidebar
@@ -109,6 +130,32 @@ browser  ──GET  /api/proxy?url=<ollama-url>──►  Bun server  ──► 
 The Bun server is the only network boundary between browser and Ollama — all
 inference calls are proxied to avoid CORS issues on LAN addresses.
 
+### OrgChart Runtime Store
+
+```text
+.orgchart/
+├── agents/<agent-slug>.md
+├── custom-tools/<tool-slug>/
+│   ├── tool.json
+│   ├── index.js
+│   └── README.md
+├── intranet/
+│   ├── knowledge/*.md
+│   ├── technology/*.md
+│   └── records/*.md
+├── skills/<skill-slug>/SKILL.md
+├── tools/<tool-id>.json
+└── data/<agent-slug>/
+    ├── working-memory/
+    ├── longterm-memory/
+    ├── working-memory.json
+    └── longterm-memory.json
+```
+
+The browser now treats `.orgchart/` as the source of truth for agents, skills,
+tools, and agent memory. If the new store is empty, legacy localStorage agent
+records are migrated automatically on first load.
+
 ### Prompting Model
 
 All workflows use the shared `InferencePolicy` layer:
@@ -152,6 +199,7 @@ transport error, the runner re-primes that model and retries the phase once.
 ├── server.js              Bun HTTP server, proxy, and pipeline SSE endpoint
 ├── lib/
 │   ├── gemma4-utils.js    Thinking-block strip/extract utilities
+│   ├── orgchart-store.js  Disk-backed `.orgchart` storage and tool runtime helpers
 │   └── pipeline-runner.js Four-phase pipeline orchestration
 ├── config/
 │   └── ollama-nodes.js    Multi-node URL config (env var driven)
@@ -163,7 +211,7 @@ transport error, the runner re-primes that model and retries the phase once.
 │   ├── chat.js            Chat workspace and streaming UI
 │   ├── pipeline.js        Multiphase Lab UI panel
 │   └── app.js             Sources, agents, meetings, and orchestration
-├── tests/                 Bun test suite (prompt policy, parsing, server, pipeline utils)
+├── tests/                 Bun test suite (prompt policy, parsing, server, pipeline utils, orgchart store)
 └── docs/                  Architecture and testing notes
 ```
 
