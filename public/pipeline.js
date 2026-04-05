@@ -390,29 +390,33 @@ function buildPhaseEditor(project, phase, index) {
     savePipelineState();
   });
 
-  const actionRow = document.createElement('div');
-  actionRow.className = 'pipeline-phase-editor-actions';
+  const moveRow = document.createElement('div');
+  moveRow.className = 'pipeline-phase-editor-move';
   const upBtn = document.createElement('button');
   upBtn.type = 'button';
-  upBtn.className = 'btn-icon';
+  upBtn.className = 'btn-icon pipeline-phase-move-btn';
   upBtn.textContent = '↑';
   upBtn.disabled = index === 0;
   upBtn.addEventListener('click', () => movePhase(project, phase.id, -1));
   const downBtn = document.createElement('button');
   downBtn.type = 'button';
-  downBtn.className = 'btn-icon';
+  downBtn.className = 'btn-icon pipeline-phase-move-btn';
   downBtn.textContent = '↓';
   downBtn.disabled = index === project.phases.length - 1;
   downBtn.addEventListener('click', () => movePhase(project, phase.id, 1));
+  moveRow.append(upBtn, downBtn);
+
+  const removeWrap = document.createElement('div');
+  removeWrap.className = 'pipeline-phase-editor-actions';
   const removeBtn = document.createElement('button');
   removeBtn.type = 'button';
-  removeBtn.className = 'btn-icon btn-remove';
+  removeBtn.className = 'btn-icon btn-remove pipeline-phase-remove-btn';
   removeBtn.textContent = '×';
   removeBtn.title = 'Remove phase';
   removeBtn.addEventListener('click', () => deletePhase(project, phase.id));
-  actionRow.append(upBtn, downBtn, removeBtn);
+  removeWrap.append(removeBtn);
 
-  topRow.append(enabledLabel, titleInput, typeSelect, actionRow);
+  topRow.append(enabledLabel, moveRow, titleInput, typeSelect, removeWrap);
 
   const configRow = document.createElement('div');
   configRow.className = 'pipeline-phase-editor-grid';
