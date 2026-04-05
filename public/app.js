@@ -699,6 +699,11 @@ async function init() {
   });
   startTaskScheduler();
 
+  // ── Configuration flow ────────────────────────────────────────────────────
+  // Must run before mountNavigation() so the config-flow shell wraps the
+  // panel mount divs before any section is shown.
+  configFlowInit();
+
   // ── Presentation dashboard ────────────────────────────────────────────────
   presentationInit();
 
