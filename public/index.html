@@ -18,19 +18,43 @@
       </div>
     </header>
 
-    <main class="app-main">
-      <!-- Both panels are built and mounted here by app.js -->
-      <div id="panel-sources-mount"></div>
-      <div id="panel-persona-mount"></div>
-      <div id="panel-skills-mount"></div>
-      <div id="panel-tools-mount"></div>
-      <div id="panel-management-mount"></div>
-      <div id="panel-intranet-mount"></div>
-      <div id="panel-chat-mount"></div>
-      <div id="panel-group-chat-mount"></div>
-      <div id="panel-pipeline-mount"></div>
-      <div id="panel-tasks-mount"></div>
-    </main>
+    <div class="app-shell">
+      <!-- Navigation rail — built by nav.js mountNavigation() -->
+      <nav class="app-nav" id="app-nav" aria-label="Main navigation"></nav>
+
+      <main class="app-main" id="app-main">
+        <!-- Presentation: live operations dashboard -->
+        <section class="app-section" id="section-presentation" aria-label="Presentation"></section>
+
+        <!-- Configuration: guided setup panels -->
+        <section class="app-section" id="section-configuration" aria-label="Configuration">
+          <div id="panel-sources-mount"></div>
+          <div id="panel-persona-mount"></div>
+          <div id="panel-skills-mount"></div>
+          <div id="panel-tools-mount"></div>
+          <div id="panel-management-mount"></div>
+          <div id="panel-tasks-mount"></div>
+        </section>
+
+        <!-- Records: intranet records section -->
+        <section class="app-section" id="section-records" aria-label="Records">
+          <div id="panel-intranet-mount"></div>
+        </section>
+
+        <!-- Knowledge: intranet knowledge section (WS2.5: rendered from intranet-mod) -->
+        <section class="app-section" id="section-knowledge" aria-label="Knowledge"></section>
+
+        <!-- Technology: intranet technology section (WS2.5: rendered from intranet-mod) -->
+        <section class="app-section" id="section-technology" aria-label="Technology"></section>
+
+        <!-- Diagnostics: chat, meetings, pipeline -->
+        <section class="app-section" id="section-diagnostics" aria-label="Diagnostics">
+          <div id="panel-chat-mount"></div>
+          <div id="panel-group-chat-mount"></div>
+          <div id="panel-pipeline-mount"></div>
+        </section>
+      </main>
+    </div>
 
     <!-- Add Source Modal (static HTML — toggled by app.js) -->
     <div id="add-modal" class="modal-backdrop hidden"
@@ -69,8 +93,9 @@
        10. tasks-mod.js         — scheduled tasks state, CRUD, scheduler, panel rendering
        11. meetings.js          — group chat, meetings, facilitator, draft boards, inference queue
        12. chat.js              — chat UI, depends on renderMarkdown + app.js globals
-        9. pipeline.js          — multiphase lab UI, depends on renderMarkdown + app.js globals
-       13. app.js               — panels, calls sourcesInit() + chatInit() + pipelineInit() at end of init()
+       13. pipeline.js          — multiphase lab UI, depends on renderMarkdown + app.js globals
+       14. nav.js               — navigation rail controller, navigateTo(), mountNavigation()
+       15. app.js               — panels, calls sourcesInit() + chatInit() + pipelineInit() + mountNavigation() at end of init()
     -->
     <script src="shared.js"></script>
     <script src="markdown.js"></script>
@@ -85,6 +110,7 @@
     <script src="meetings.js"></script>
     <script src="chat.js"></script>
     <script src="pipeline.js"></script>
+    <script src="nav.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

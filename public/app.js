@@ -698,6 +698,11 @@ async function init() {
     if (e.target === e.currentTarget) hideModal();
   });
   startTaskScheduler();
+
+  // ── Navigation ────────────────────────────────────────────────────────────
+  // mountNavigation() builds the nav rail and activates the last-used section.
+  // Called after all panels are mounted so panels are already in the DOM.
+  mountNavigation();
 }
 
 init().catch(err => {
