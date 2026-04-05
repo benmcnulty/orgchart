@@ -479,6 +479,140 @@ h1 {
   display: block;
 }
 
+/* ─── Presentation Dashboard ─────────────────────────────────────────────── */
+
+.presentation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+.presentation-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.presentation-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.presentation-card-icon {
+  font-size: 18px;
+  line-height: 1;
+  color: var(--text-muted);
+}
+
+.presentation-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.presentation-card-body {
+  padding: 14px 16px;
+}
+
+.presentation-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 0;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+}
+
+.presentation-stat-row:last-of-type {
+  border-bottom: none;
+}
+
+.presentation-stat-label {
+  color: var(--text-muted);
+}
+
+.presentation-stat-value {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.presentation-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 100px;
+  letter-spacing: 0.04em;
+}
+
+.presentation-badge--active {
+  background: rgba(52,211,153,0.15);
+  color: var(--status-connected, #34d399);
+}
+
+.presentation-badge--paused {
+  background: rgba(156,163,175,0.15);
+  color: var(--text-muted);
+}
+
+.presentation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.presentation-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.presentation-list-item:last-child {
+  border-bottom: none;
+}
+
+.presentation-list-item--unread .presentation-list-title {
+  font-weight: 600;
+}
+
+.presentation-list-title {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.presentation-list-meta {
+  color: var(--text-muted);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.presentation-empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-style: italic;
+  margin: 0;
+}
+
+.presentation-card-actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 /* ─── Sources Toolbar ────────────────────────────────────────────────────── */
 
 .sources-toolbar {
