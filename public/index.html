@@ -57,12 +57,14 @@
 
     <!--
       Script order matters:
-        1. markdown.js          — renderMarkdown() global, no dependencies
-        2. inference-policy.js  — shared Gemma/Ollama prompt policy helpers
-        3. chat.js              — chat UI, depends on renderMarkdown + app.js globals
-        4. pipeline.js          — multiphase lab UI, depends on renderMarkdown + app.js globals
-        5. app.js               — sources state, panels, calls chatInit() + pipelineInit() at end of init()
+        1. shared.js            — createPanel, el, clampText, apiJson, proxyFetch, notifications
+        2. markdown.js          — renderMarkdown() global, no dependencies
+        3. inference-policy.js  — shared Gemma/Ollama prompt policy helpers
+        4. chat.js              — chat UI, depends on renderMarkdown + app.js globals
+        5. pipeline.js          — multiphase lab UI, depends on renderMarkdown + app.js globals
+        6. app.js               — sources state, panels, calls chatInit() + pipelineInit() at end of init()
     -->
+    <script src="shared.js"></script>
     <script src="markdown.js"></script>
     <script src="inference-policy.js"></script>
     <script src="chat.js"></script>
