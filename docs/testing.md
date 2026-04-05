@@ -5,7 +5,7 @@ MIT License © 2026 Ben McNulty
 ## Commands
 
 - `bun run test` runs the Bun test suite.
-- `bun run check` syntax-checks the browser/server JavaScript entrypoints.
+- `bun run check` syntax-checks every browser module, `lib/*.js`, and `server.js`.
 
 ## Current Coverage
 
@@ -26,16 +26,15 @@ The automated suite focuses on the highest-risk logic that does not require a br
 2. Run `bun run test`
 3. Start the app with `bun run dev`
 4. Manually verify:
-   - chat streaming and hidden reasoning panels
+   - home launcher, app navigation, and narrow/mobile layout behavior
+   - setup step completion, locking, and app-launch actions
    - agent draft vs revise flows and role assignment
    - management org chart editing, role fill states, and generate-agent-from-role
    - tool runtime configuration and test probes, including Wikipedia lookups
-- meeting auto mode, explicit completion, and retrospective memory writes
-- records emission for meetings and completed task runs
-- custom tool registry safety checks and manual test execution
-   - scheduled tasks in manual mode and auto mode
-   - draft-board planning/revision
-   - import/export snapshot flow
+   - meeting auto mode, explicit completion, and retrospective memory writes
+   - records emission for meetings and completed task runs
+   - custom tool registry safety checks and manual test execution
+   - scheduled task editing, continuity notes, and manual run behavior
    - `.orgchart` migration from legacy localStorage agents on first launch
    - multiphase lab warm-up status, hidden reasoning panels, and retry-from-timeout behavior
 
@@ -43,7 +42,7 @@ The automated suite focuses on the highest-risk logic that does not require a br
 
 The next layer of test investment should be browser automation for:
 
-- workspace rail collapse/expand behavior
+- app launcher navigation and mobile bottom dock behavior
+- setup-step interactions and readiness gating
+- workflow and resources responsive layouts
 - meeting/draft-board responsive layouts
-- multi-source scheduling visibility
-- session hydration after import

@@ -4,12 +4,15 @@ MIT License © 2026 Ben McNulty
 
 ## Runtime Shape
 
-- `server.js` serves static assets and proxies Ollama requests through `/api/proxy` and `/api/stream`.
-- `lib/orgchart-store.js` owns the `.orgchart` disk layout for agents, skills, tools, intranet documents, custom tool registry entries, and per-agent memory sandboxes.
-- `public/inference-policy.js` is the shared prompt/orchestration policy for Gemma/Ollama workflows.
-- `public/chat.js` owns multi-chat state, streaming rendering, and hidden reasoning UX.
-- `public/app.js` owns sources, disk-backed agents/skills/tools, meetings, draft boards, task queues, and import/export.
-- `public/app.js` also owns the local organization chart and scheduled-task models that bind agents to departments, teams, roles, meetings, and recurring background workflows.
+- `server.js` serves static assets, proxies Ollama requests, and exposes the OrgChart disk/runtime APIs.
+- `lib/orgchart-store.js` owns the `.orgchart` disk layout for agents, skills, tools, intranet documents, custom tools, projects, and per-agent memory sandboxes.
+- `public/app.js` bootstraps shared state and mounts the app surfaces.
+- `public/nav.js` manages active-app navigation.
+- `public/home.js` renders the launcher/home surface.
+- `public/presentation.js` renders the board dashboard.
+- `public/config-flow.js` renders the guided setup experience.
+- `public/management.js`, `public/agents.js`, `public/sources.js`, `public/skills.js`, `public/tools.js`, `public/tasks-mod.js`, `public/meetings.js`, `public/projects.js`, and `public/intranet-mod.js` each own a focused domain surface on top of the same shared state.
+- `public/inference-policy.js` remains the shared prompt/orchestration policy for Gemma/Ollama workflows.
 
 ## Prompt Policy
 
@@ -73,13 +76,32 @@ Meetings run through a queue-based scheduler in `public/app.js`.
 - Participants can receive injected web-research and memory context when their assigned skills allow it.
 - Completed meetings trigger a retrospective pass that writes participant learnings into working memory.
 
+## App Shell
+
+The browser UI now behaves like a small operating environment rather than a flat
+panel stack. The primary app surfaces are:
+
+- `Home`
+- `Board`
+- `Setup`
+- `Organization`
+- `Messages`
+- `Workflows`
+- `Resources`
+- `Intranet`
+- `Diagnostics`
+
+Mobile uses a touch-first launcher plus bottom navigation. Tablet/desktop keep
+the same app model with denser layouts, but only one primary app surface is
+active at a time.
+
 ## Management and Task Scheduling
 
 - Organizations contain departments, teams, and roles.
 - Roles can be filled by assigning an existing agent or by generating a new role-optimized agent.
 - Scheduled tasks can run meetings or trigger all-agent memory consolidation.
 - A global application automation toggle gates all autonomous and scheduled background execution.
-- The intranet stores editable Knowledge and Technology markdown plus system-managed Records for meetings and task runs.
+- The intranet stores read-first Knowledge and Technology markdown plus system-managed Records for meetings and task runs.
 - Custom tools are reviewed JavaScript modules in `.orgchart/custom-tools/` and execute only through the Bun-managed registry wrapper.
 - Recurring tasks execute only while the app is open and the global task auto-toggle is enabled.
 
@@ -113,4 +135,5 @@ When adding new autonomous workflows:
 1. Add a new workflow name to the shared prompt policy.
 2. Define its output contract and validator before wiring UI.
 3. Reuse the queue/critic/stream tracing path instead of making direct one-off fetch calls.
-4. Keep public UI reasoning hidden by default unless the workflow explicitly needs it surfaced.
+4. Prefer adding capability to an existing app surface before creating a new top-level app.
+5. Keep public UI reasoning hidden by default unless the workflow explicitly needs it surfaced.

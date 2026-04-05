@@ -1,7 +1,7 @@
 # OrgChart: Paper Dolls for Corporate Theater
 
-> A local AI lab for distributed inference, multiphase prompt pipelines, and
-> agentic workflow experimentation — built on Ollama and Gemma 4.
+> A local operating environment for autonomous organizations built on Bun,
+> Ollama, and Gemma 4.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -9,10 +9,10 @@
 
 ## What Is OrgChart?
 
-OrgChart is a zero-dependency local web application that turns your network of
-Ollama inference nodes into a coordinated AI workforce. It manages sources,
-routes workloads by hardware capacity, runs structured multiphase pipelines,
-and surfaces all intermediate reasoning artifacts for inspection.
+OrgChart is a zero-dependency local web application that turns a set of local
+inference resources into a governed organizational operating system. It now
+centers the experience around app-like surfaces for setup, board oversight,
+workflows, resources, intranet review, messaging, and diagnostics.
 
 The name reflects the premise: language models playing assigned corporate roles,
 doing the kind of structured, iterative knowledge work that organizations produce.
@@ -41,6 +41,12 @@ Paper dolls for corporate theater — disposable, interchangeable, surprisingly 
 - **File attachments** — text, markdown, and image support
 - **Context compression** — automatic background summarization when the context
   window fills up
+
+### Operating Environment
+- **Home launcher** — mobile-first app grid for entering the organization
+- **Board app** — live operational dashboard for board-level visibility
+- **Setup app** — guided onboarding and autonomy readiness checklist
+- **Focused apps** — Organization, Messages, Workflows, Resources, Intranet, and Diagnostics
 
 ### Management & Tasks
 - **Management** — model one organization with departments, teams, and roles
@@ -153,8 +159,8 @@ inference calls are proxied to avoid CORS issues on LAN addresses.
 ```
 
 The browser now treats `.orgchart/` as the source of truth for agents, skills,
-tools, and agent memory. If the new store is empty, legacy localStorage agent
-records are migrated automatically on first load.
+tools, intranet content, and agent memory. If the new store is empty, legacy
+localStorage agent records are migrated automatically on first load.
 
 ### Prompting Model
 
@@ -204,14 +210,28 @@ transport error, the runner re-primes that model and retries the phase once.
 ├── config/
 │   └── ollama-nodes.js    Multi-node URL config (env var driven)
 ├── public/
-│   ├── index.html         Application shell
-│   ├── style.css          Layout, themes, and workspace styling
-│   ├── inference-policy.js Shared Gemma/Ollama prompt policy
-│   ├── markdown.js        Safe markdown renderer (no innerHTML)
+│   ├── index.html         App shell and section mounts
+│   ├── style.css          Shared design system and responsive shell
+│   ├── nav.js             App navigation rail and active app state
+│   ├── home.js            OS-style launcher and focus surfaces
+│   ├── presentation.js    Board dashboard
+│   ├── config-flow.js     Guided setup application
+│   ├── agents.js          Agent editor and drafting flows
+│   ├── management.js      Organization, roles, departments, teams
+│   ├── tasks-mod.js       Scheduled task orchestration UI/state
+│   ├── meetings.js        Meeting orchestration and facilitator flows
+│   ├── projects.js        Projects and milestones
+│   ├── intranet-mod.js    Knowledge / technology / records review surface
+│   ├── sources.js         Inference source management
+│   ├── skills.js          Skill configuration
+│   ├── tools.js           Tool runtime configuration
 │   ├── chat.js            Chat workspace and streaming UI
-│   ├── pipeline.js        Multiphase Lab UI panel
-│   └── app.js             Sources, agents, meetings, and orchestration
-├── tests/                 Bun test suite (prompt policy, parsing, server, pipeline utils, orgchart store)
+│   ├── pipeline.js        Multiphase Lab
+│   ├── inference-policy.js Shared Gemma/Ollama prompt policy
+│   ├── markdown.js        Safe markdown renderer
+│   ├── shared.js          Shared DOM/fetch/panel helpers
+│   └── app.js             Bootstraps the shared runtime and mounts the apps
+├── tests/                 Bun test suite for prompt policy, parsing, server, pipeline, and store/runtime logic
 └── docs/                  Architecture and testing notes
 ```
 
