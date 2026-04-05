@@ -9,7 +9,7 @@ const PERSONA_STORAGE_KEY = 'inference-personas';
 const ORG_STORAGE_KEY = 'orgchart-organizations';
 const TASK_STORAGE_KEY = 'orgchart-scheduled-tasks';
 const AUTOMATION_STORAGE_KEY = 'orgchart-automation-enabled';
-const SESSION_EXPORT_VERSION = 1;
+const SESSION_EXPORT_VERSION = 2;
 const THEME_KEY = 'theme-preference';
 const DEFAULT_MODEL = 'gemma4:latest';
 const DEFAULT_URL = 'http://localhost:11434';
@@ -348,6 +348,11 @@ function exportSessionSnapshot() {
         hasUpdate: meeting.hasUpdate,
       })),
     },
+    projects: typeof projects !== 'undefined' ? projects.map(p => ({ ...p })) : [],
+    activeSection: typeof activeSectionId !== 'undefined' ? activeSectionId : null,
+    configProgress: (() => {
+      try { return JSON.parse(localStorage.getItem('orgchart-config-progress') || 'null'); } catch { return null; }
+    })(),
     chat: typeof window.chatExportState === 'function' ? window.chatExportState() : null,
   };
 }
@@ -449,6 +454,30 @@ async function applyImportedSession(snapshot) {
     if (snapshot.meetings.uiState) {
       uiState = { ...uiState, ...snapshot.meetings.uiState };
     }
+  }
+
+  // v2: projects
+  if (Array.isArray(snapshot.projects) && snapshot.projects.length > 0) {
+    for (const project of snapshot.projects) {
+      await apiJson('/api/orgchart/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(project),
+      });
+    }
+    await loadProjects();
+    renderProjectsPanel();
+  }
+
+  // v2: active section
+  if (snapshot.activeSection && typeof navigateTo === 'function') {
+    navigateTo(snapshot.activeSection);
+  }
+
+  // v2: config progress
+  if (snapshot.configProgress) {
+    try { localStorage.setItem('orgchart-config-progress', JSON.stringify(snapshot.configProgress)); } catch {}
+    if (typeof renderConfigChecklist === 'function') renderConfigChecklist();
   }
 
   if (snapshot.theme) {
@@ -711,6 +740,18 @@ async function init() {
     if (e.target === e.currentTarget) hideModal();
   });
   startTaskScheduler();
+
+  // ── Diagnostics section intro ─────────────────────────────────────────────
+  const diagnosticsSection = document.getElementById('section-diagnostics');
+  if (diagnosticsSection) {
+    const diagIntro = el('div', 'section-intro');
+    const diagTitle = el('h2', 'section-intro-title');
+    diagTitle.textContent = 'Diagnostics';
+    const diagDesc = el('p', 'section-intro-desc');
+    diagDesc.textContent = 'Direct chat, meeting operations, and multiphase inference lab. Use these tools to test agents, debug inference sources, and run unstructured sessions.';
+    diagIntro.append(diagTitle, diagDesc);
+    diagnosticsSection.prepend(diagIntro);
+  }
 
   // ── Configuration flow ────────────────────────────────────────────────────
   // Must run before mountNavigation() so the config-flow shell wraps the

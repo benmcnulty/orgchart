@@ -3030,6 +3030,74 @@ h1 {
   }
 }
 
+@media (max-width: 480px) {
+  /* Bottom tab bar: nav moves to bottom of viewport */
+  .app-shell {
+    flex-direction: column;
+    height: auto;
+    min-height: calc(100vh - var(--header-height, 81px));
+  }
+
+  .app-nav {
+    order: 2;
+    width: 100%;
+    min-width: 0;
+    height: 56px;
+    min-height: 56px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-around;
+    padding: 0;
+    border-right: none;
+    border-top: 1px solid var(--border);
+    position: sticky;
+    bottom: 0;
+    z-index: 100;
+    background: var(--surface);
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .app-main {
+    order: 1;
+    flex: 1;
+    overflow-y: auto;
+    height: auto;
+  }
+
+  .app-nav-item {
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 4px;
+    justify-content: center;
+    align-items: center;
+    min-height: 44px;
+    min-width: 44px;
+    font-size: 11px;
+    border-radius: 0;
+  }
+
+  .app-nav-item-icon {
+    font-size: 18px;
+  }
+
+  .app-nav-item-label {
+    display: block;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 48px;
+  }
+
+  .app-nav-item--active {
+    border-radius: 0;
+  }
+}
+
 @media (max-width: 1120px) {
   .app-nav {
     width: 160px;
@@ -3793,6 +3861,30 @@ h1 {
   border-top: 1px solid var(--border);
   background: var(--surface);
   flex-wrap: wrap;
+}
+
+/* ─── Section intro (Diagnostics, etc.) ─────────────────────────────────────── */
+
+.section-intro {
+  padding: 24px 28px 16px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--surface) 0%, transparent 100%);
+}
+
+.section-intro-title {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.section-intro-desc {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  max-width: 600px;
 }
 
 /* ─── Projects & Milestones ──────────────────────────────────────────────────── */
