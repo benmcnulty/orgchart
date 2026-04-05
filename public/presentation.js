@@ -20,6 +20,7 @@ function presentationInit() {
   document.addEventListener('sources-changed', renderPresentationDashboard);
   document.addEventListener('personas-changed', renderPresentationDashboard);
   document.addEventListener('meeting-updated', renderPresentationDashboard);
+  document.addEventListener('projects-changed', renderPresentationDashboard);
 }
 
 // ─── Dashboard Render ─────────────────────────────────────────────────────────
@@ -31,6 +32,7 @@ function renderPresentationDashboard() {
   grid.replaceChildren(
     buildAgentHealthCard(),
     buildAutomationCard(),
+    buildActiveProjectsCard(),
     buildActiveMeetingsCard(),
     buildUpcomingTasksCard(),
     buildRecentActivityCard(),
@@ -122,6 +124,51 @@ function buildAutomationCard() {
     const actions = el('div', 'presentation-card-actions');
     const btn = el('button', 'btn-secondary');
     btn.textContent = 'Manage Tasks →';
+    btn.addEventListener('click', () => navigateTo('configuration'));
+    actions.appendChild(btn);
+    body.appendChild(actions);
+  });
+}
+
+function buildActiveProjectsCard() {
+  return presentationCard('Active Projects', '◇', body => {
+    const allProjects = typeof projects !== 'undefined' ? projects : [];
+    const active = allProjects.filter(p => p.status === 'active' || p.status === 'planning');
+
+    if (allProjects.length === 0) {
+      const empty = el('p', 'presentation-empty');
+      empty.textContent = 'No projects yet.';
+      body.appendChild(empty);
+    } else {
+      const list = el('div', 'presentation-list');
+      list.append(...active.slice(0, 5).map(project => {
+        const item = el('div', 'presentation-list-item');
+        const name = el('span', 'presentation-list-title');
+        name.textContent = project.name || 'Untitled Project';
+
+        const meta = el('span', 'presentation-list-meta');
+        const progress = typeof projectProgress === 'function' ? projectProgress(project) : null;
+        const statusLabel = typeof projectStatusLabel === 'function' ? projectStatusLabel(project.status) : project.status;
+        meta.textContent = progress
+          ? `${progress.done}/${progress.total} milestones · ${statusLabel}`
+          : statusLabel;
+
+        item.append(name, meta);
+        return item;
+      }));
+
+      if (active.length === 0) {
+        const idle = el('p', 'presentation-empty');
+        idle.textContent = `${allProjects.length} project${allProjects.length !== 1 ? 's' : ''} — none active.`;
+        body.appendChild(idle);
+      } else {
+        body.appendChild(list);
+      }
+    }
+
+    const actions = el('div', 'presentation-card-actions');
+    const btn = el('button', 'btn-secondary');
+    btn.textContent = 'View Projects →';
     btn.addEventListener('click', () => navigateTo('configuration'));
     actions.appendChild(btn);
     body.appendChild(actions);
