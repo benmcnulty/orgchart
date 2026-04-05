@@ -67,9 +67,10 @@
         8. management.js        — organization, department, team, and role management
         9. intranet-mod.js      — intranet documents and custom tools panel
        10. tasks-mod.js         — scheduled tasks state, CRUD, scheduler, panel rendering
-       11. chat.js              — chat UI, depends on renderMarkdown + app.js globals
+       11. meetings.js          — group chat, meetings, facilitator, draft boards, inference queue
+       12. chat.js              — chat UI, depends on renderMarkdown + app.js globals
         9. pipeline.js          — multiphase lab UI, depends on renderMarkdown + app.js globals
-       12. app.js               — panels, calls sourcesInit() + chatInit() + pipelineInit() at end of init()
+       13. app.js               — panels, calls sourcesInit() + chatInit() + pipelineInit() at end of init()
     -->
     <script src="shared.js"></script>
     <script src="markdown.js"></script>
@@ -81,6 +82,7 @@
     <script src="management.js"></script>
     <script src="intranet-mod.js"></script>
     <script src="tasks-mod.js"></script>
+    <script src="meetings.js"></script>
     <script src="chat.js"></script>
     <script src="pipeline.js"></script>
     <script src="app.js"></script>
