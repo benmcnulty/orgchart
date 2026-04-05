@@ -52,6 +52,21 @@ describe('pipeline-runner helpers', () => {
     expect(shouldRetryPhaseError(new Error('fetch failed: socket hang up'))).toBe(true);
     expect(shouldRetryPhaseError(new Error('Ollama error (404): model not found'))).toBe(false);
   });
+
+  test('builds primer targets from phase-selected endpoints', () => {
+    const targets = buildPrimeTargets(['optimizer', 'generator', 'critic', 'synthesizer'], {
+      optimizer: { sourceUrl: 'http://min:11434', model: 'gemma4:e2b' },
+      generator: { sourceUrl: 'http://vic:11434', model: 'gemma4:latest' },
+      critic: { sourceUrl: 'http://vic:11434', model: 'gemma4:latest' },
+      synthesizer: { sourceUrl: 'http://air:11434', model: 'gemma4:26b' },
+    });
+
+    expect(targets.map(target => target.key)).toEqual([
+      'http://min:11434::gemma4:e2b',
+      'http://vic:11434::gemma4:latest',
+      'http://air:11434::gemma4:26b',
+    ]);
+  });
 });
 
 describe('runPipeline', () => {
@@ -121,26 +136,27 @@ describe('runPipeline', () => {
 
   test('does not abort when warm-up fails for the runnable phase model', async () => {
     const events = [];
-    let callIndex = 0;
+    let generateCalls = 0;
 
-    global.fetch = async () => {
-      callIndex += 1;
+    global.fetch = async (url) => {
+      const target = String(url);
 
-      if (callIndex === 1 || callIndex === 2) {
+      if (target.endsWith('/api/generate')) {
+        generateCalls += 1;
         return new Response(JSON.stringify({ error: "model 'gemma4:e4b' not found" }), {
           status: 404,
           headers: { 'Content-Type': 'application/json' },
         });
       }
 
-      if (callIndex === 3) {
+      if (target.endsWith('/api/chat')) {
         return makeNdjsonResponse([
           JSON.stringify({ message: { thinking: 'Recover after warm-up failure.' } }),
           JSON.stringify({ message: { content: 'Recovered output.' } }),
         ]);
       }
 
-      throw new Error(`Unexpected fetch call ${callIndex}`);
+      throw new Error(`Unexpected fetch call ${target}`);
     };
 
     const run = await runPipeline(
@@ -156,7 +172,7 @@ describe('runPipeline', () => {
       },
     );
 
-    expect(events.filter(event => event.type === 'primer')).toEqual([
+    expect(events.filter(event => event.type === 'primer').slice(0, 2)).toEqual([
       {
         type: 'primer',
         status: 'start',
@@ -172,17 +188,52 @@ describe('runPipeline', () => {
         sourceUrl: 'http://air:11434',
         message: "Prime failed (404): {\"error\":\"model 'gemma4:e4b' not found\"}",
       },
-      {
-        type: 'primer',
-        status: 'failed',
-        key: 'http://air:11434::gemma4:e4b',
-        model: 'gemma4:e4b',
-        sourceUrl: 'http://air:11434',
-        message: "Prime failed (404): {\"error\":\"model 'gemma4:e4b' not found\"}",
-      },
     ]);
+    expect(generateCalls).toBeGreaterThanOrEqual(1);
     expect(run.phases.optimizer.skipped).toBe(true);
     expect(run.phases.synthesizer.strippedOutput).toBe('Recovered output.');
     expect(run.finalOutput).toBe('Recovered output.');
+  });
+
+  test('starts warm-up for all runnable targets before phase execution blocks on later phases', async () => {
+    const events = [];
+    const callLog = [];
+
+    global.fetch = async (url) => {
+      const target = String(url);
+      callLog.push(target);
+
+      if (target.endsWith('/api/generate')) {
+        return new Promise(resolve => {
+          setTimeout(() => resolve(new Response(JSON.stringify({ done: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })), 25);
+        });
+      }
+
+      return makeNdjsonResponse([
+        JSON.stringify({ message: { content: 'ok' } }),
+      ]);
+    };
+
+    await runPipeline(
+      'Write a short answer.',
+      {
+        optimizer: { sourceUrl: 'http://min:11434', model: 'gemma4:e2b', thinkingEnabled: true },
+        generator: { sourceUrl: 'http://vic:11434', model: 'gemma4:latest', thinkingEnabled: true },
+        critic: { sourceUrl: 'http://vic:11434', model: 'gemma4:latest', thinkingEnabled: true },
+        synthesizer: { sourceUrl: 'http://air:11434', model: 'gemma4:26b', thinkingEnabled: true },
+      },
+      event => events.push(event),
+      {},
+    );
+
+    expect(callLog.slice(0, 3)).toEqual([
+      'http://min:11434/api/generate',
+      'http://vic:11434/api/generate',
+      'http://air:11434/api/generate',
+    ]);
+    expect(events.filter(event => event.type === 'primer' && event.status === 'start')).toHaveLength(3);
   });
 });

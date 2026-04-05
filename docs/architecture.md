@@ -46,7 +46,12 @@ The multiphase lab uses a split-channel stream contract:
 - `output` deltas are streamed directly into the visible response surface
 - the canonical stored phase record is rebuilt once from the final buffers so repeated reasoning tags never leak into the user-facing stream
 
-Before a run starts, the server primes each unique `(sourceUrl, model)` pair.
+Before a run starts, the server launches a parallel warm-up task for each
+unique selected `(sourceUrl, model)` pair using a lightweight `/api/generate`
+keep-alive request. Phases do not wait for the full warm-up set to finish; each
+phase only gives its own target a short head start, which keeps the interface
+responsive while other selected endpoints continue loading in the background.
+
 If a phase fails with a timeout-like transport error, the runner emits a retry
 event, re-primes that same target, and retries the phase once. This keeps the
 pipeline resilient to cold Ollama models without silently looping forever.

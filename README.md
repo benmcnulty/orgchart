@@ -50,7 +50,7 @@ Paper dolls for corporate theater — disposable, interchangeable, surprisingly 
 - **Capacity-aware routing** — phases assigned to sources by hardware tier
 - **Streaming display** — visible output streams cleanly without duplicated reasoning tags
 - **Thinking panels** — full reasoning traces stay available per phase, hidden by default while they stream
-- **Endpoint priming** — selected models are pre-warmed before execution to reduce cold-start timeouts
+- **Endpoint priming** — selected source/model pairs are pre-warmed in parallel with fast keep-alive loads
 - **Self-healing retries** — timeout-like phase failures trigger a warm-up pass and one automatic retry
 - **Run documentation** — synthesizer appends a structured improvement log
 - **Retry from failure** — resume pipeline from a failed phase without rerunning earlier work
@@ -134,9 +134,12 @@ Phase 4: Synthesizer ── final revised output + run documentation block
 ```
 
 Thinking blocks are stripped between phases. Only clean content passes forward.
-Before a run starts, the server primes each unique `(source, model)` pair once.
-If a phase still fails with a timeout-like transport error, the runner re-primes
-that model and retries the phase a single time before surfacing an error.
+Before a run starts, the server kicks off a parallel warm-up pass for each
+unique selected `(source, model)` pair using a lightweight keep-alive preload.
+Phase execution does not fully block on that work; each phase only gives its
+target model a short head start so the UI stays responsive while later models
+continue warming in the background. If a phase still fails with a timeout-like
+transport error, the runner re-primes that model and retries the phase once.
 
 ---
 

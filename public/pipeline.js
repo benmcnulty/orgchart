@@ -110,6 +110,7 @@ function pipelinePickSource(phaseName, allSources) {
 let pipelineRunning = false;
 let pipelineAbortController = null;
 const PIPELINE_FETCH_RETRY_DELAY_MS = 1500;
+let pipelinePrimerState = new Map();
 
 /** Accumulated phase outputs for retry-from-failure */
 let pipelinePhaseCtx = {};
@@ -498,24 +499,20 @@ function pipelineHandleEvent(event) {
       refs.thinkDetails.dataset.streaming = 'true';
       refs.thinkMeta.textContent = 'Streaming';
       refs.thinkPreview.textContent = 'Reasoning trace is being collected';
-      pipelineSetRunStatus(`Running ${PHASE_META[phase]?.label ?? phase}…`, 'info');
+      pipelineSyncPrimerStatus(`Running ${PHASE_META[phase]?.label ?? phase}…`);
       // Scroll card into view smoothly
       refs.card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       break;
     }
 
     case 'primer': {
-      const label = event.model ? `${event.model}` : 'model';
-      if (event.status === 'start') {
-        pipelineSetRunStatus(`Priming ${label} on ${pipelineShortSource(event.sourceUrl)}…`, 'info');
-      } else if (event.status === 'retry') {
-        pipelineSetRunStatus(`Retrying warm-up for ${label} on ${pipelineShortSource(event.sourceUrl)}…`, 'info');
-      } else if (event.status === 'failed') {
-        pipelineSetRunStatus(
-          `Warm-up failed for ${label} on ${pipelineShortSource(event.sourceUrl)}. Continuing with the phase request…`,
-          'info',
-        );
-      }
+      pipelinePrimerState.set(event.key, {
+        status: event.status,
+        model: event.model,
+        sourceUrl: event.sourceUrl,
+        message: event.message ?? '',
+      });
+      pipelineSyncPrimerStatus();
       break;
     }
 
@@ -630,6 +627,7 @@ function pipelineHandleEvent(event) {
       const { run } = event;
       pipelineCurrentRun = run;
       pipelineShowFinalOutput(run);
+      pipelinePrimerState = new Map();
       pipelineSetRunStatus('');
       break;
     }
@@ -644,6 +642,7 @@ function pipelineHandleEvent(event) {
         refs.streamEl.replaceChildren(errEl);
         refs.retryBtn.hidden = false;
       }
+      pipelinePrimerState = new Map();
       pipelineSetRunStatus(`Phase ${PHASE_META[phase]?.label ?? phase} failed: ${event.message}`, 'error');
       break;
     }
@@ -679,11 +678,34 @@ function pipelineSetPhaseStatus(phase, status) {
   refs.statusBadge.textContent = STATUS_LABELS[status] ?? status;
 }
 
-function pipelineSetRunStatus(message, tone = 'info') {
+function pipelineSetRunStatus(message, tone = 'info', busy = false) {
   if (!pipelineRunStatusEl) return;
   pipelineRunStatusEl.textContent = message;
   pipelineRunStatusEl.className = `pipeline-run-status pipeline-run-status--${tone}`;
+  pipelineRunStatusEl.dataset.busy = busy ? 'true' : 'false';
   pipelineRunStatusEl.hidden = !message;
+}
+
+function pipelineSyncPrimerStatus(contextMessage = '') {
+  const states = [...pipelinePrimerState.values()];
+  if (!states.length) {
+    if (contextMessage) pipelineSetRunStatus(contextMessage, 'info');
+    return;
+  }
+
+  const total = states.length;
+  const complete = states.filter(state => state.status === 'complete' || state.status === 'failed').length;
+  const failed = states.filter(state => state.status === 'failed').length;
+  const busy = complete < total;
+  const base = contextMessage ? `${contextMessage} ` : '';
+  const suffix = failed
+    ? `${complete}/${total} warmed, ${failed} continuing without warm-up`
+    : `${complete}/${total} warmed`;
+
+  pipelineSetRunStatus(`${base}Warming selected endpoints/models… ${suffix}`.trim(), 'info', busy);
+  if (!busy && contextMessage) {
+    pipelineSetRunStatus(contextMessage, 'info');
+  }
 }
 
 // ─── Final Output ─────────────────────────────────────────────────────────────
@@ -759,6 +781,7 @@ async function pipelineStartRun(precomputedCtx = {}) {
   if (Object.keys(precomputedCtx).length === 0) {
     // Full fresh run — clear all refs and hide cards
     pipelinePhaseCtx = {};
+    pipelinePrimerState = new Map();
     for (const phase of PIPELINE_PHASES) {
       const refs = phaseRefs[phase];
       if (!refs) continue;

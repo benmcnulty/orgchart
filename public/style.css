@@ -2301,6 +2301,8 @@ h1 {
   font-size: 12px;
   color: var(--text-muted);
   flex: 1;
+  position: relative;
+  min-height: 18px;
 }
 
 .pipeline-run-status--error {
@@ -2309,6 +2311,28 @@ h1 {
 
 .pipeline-run-status--info {
   color: var(--text-muted);
+}
+
+.pipeline-run-status[data-busy="true"]::after {
+  content: '';
+  display: inline-block;
+  width: 34px;
+  height: 8px;
+  margin-left: 10px;
+  border-radius: 999px;
+  vertical-align: middle;
+  background:
+    radial-gradient(circle, var(--accent) 0 45%, transparent 50%) 0 50% / 8px 8px no-repeat,
+    radial-gradient(circle, var(--accent) 0 45%, transparent 50%) 13px 50% / 8px 8px no-repeat,
+    radial-gradient(circle, var(--accent) 0 45%, transparent 50%) 26px 50% / 8px 8px no-repeat;
+  animation: pipeline-primer-dots 1s linear infinite;
+  opacity: 0.85;
+}
+
+@keyframes pipeline-primer-dots {
+  0% { transform: translateX(0); opacity: 0.35; }
+  40% { transform: translateX(2px); opacity: 1; }
+  100% { transform: translateX(0); opacity: 0.35; }
 }
 
 /* ─── Config details panel ───────────────────────────────────────────────────── */
