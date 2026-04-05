@@ -7,7 +7,7 @@ MIT License © 2026 Ben McNulty
 - `server.js` serves static assets and proxies Ollama requests through `/api/proxy` and `/api/stream`.
 - `public/inference-policy.js` is the shared prompt/orchestration policy for Gemma/Ollama workflows.
 - `public/chat.js` owns multi-chat state, streaming rendering, and hidden reasoning UX.
-- `public/app.js` owns sources, personas, meetings, draft boards, task queues, and import/export.
+- `public/app.js` owns sources, agents, meetings, draft boards, task queues, and import/export.
 
 ## Prompt Policy
 
@@ -21,7 +21,7 @@ The app uses a single structured prompting model:
 This keeps prompt behavior consistent across:
 
 - chat replies
-- persona drafting
+- agent drafting
 - meeting agenda generation
 - facilitator planning
 - participant turns
@@ -58,7 +58,7 @@ pipeline resilient to cold Ollama models without silently looping forever.
 
 The client-side lab now manages multiple saved pipeline projects. Each project
 stores its own prompt, ordered phase plan, per-phase source/model selection,
-optional persona instructions, and latest run record. The server executes only
+optional agent instructions, and latest run record. The server executes only
 the enabled ordered phase definitions it receives from the active project.
 
 ## Extension Guidance

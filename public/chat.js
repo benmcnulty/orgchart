@@ -1,5 +1,5 @@
 // chat.js — multi-conversation chat workspace with streaming replies.
-// Depends on: markdown.js globals and shared source/persona globals from app.js.
+// Depends on: markdown.js globals and shared source/agent globals from app.js.
 
 const CTX_CHAR_LIMIT = 20000;
 const CTX_KEEP_RECENT = 6;
@@ -75,7 +75,7 @@ function chatInit(mountEl, panelActions = {}) {
     chatRenderSessionList();
   });
 
-  const personaField = chatBuildSelectField('chat-persona-select', 'Persona', 'Use saved system instructions or leave on Default.');
+  const personaField = chatBuildSelectField('chat-persona-select', 'Agent', 'Use saved system instructions or leave on Default.');
   const personaSelect = personaField.querySelector('select');
   personaSelect.className = 'chat-source-select';
   personaSelect.addEventListener('change', e => {
@@ -359,13 +359,13 @@ function chatRefreshPersonaSelector(allPersonas) {
 
   const defaultOpt = document.createElement('option');
   defaultOpt.value = '';
-  defaultOpt.textContent = 'Default (no persona)';
+  defaultOpt.textContent = 'Default (no agent)';
   select.appendChild(defaultOpt);
 
   for (const persona of allPersonas) {
     const opt = document.createElement('option');
     opt.value = persona.id;
-    opt.textContent = `${persona.name.trim() || 'Untitled Persona'}${persona.title.trim() ? ` • ${persona.title.trim()}` : ''}`;
+    opt.textContent = `${persona.name.trim() || 'Untitled Agent'}${persona.title.trim() ? ` • ${persona.title.trim()}` : ''}`;
     select.appendChild(opt);
   }
 

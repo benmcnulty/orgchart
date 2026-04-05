@@ -2215,16 +2215,16 @@ h1 {
   }
 
   .pipeline-phase-editor-top {
-    grid-template-columns: minmax(0, 1fr) minmax(140px, 0.8fr) minmax(140px, 0.9fr);
+    grid-template-columns: minmax(0, 1fr) minmax(140px, 0.8fr);
   }
 
   .pipeline-phase-editor-top .pipeline-phase-enabled,
   .pipeline-phase-editor-top .pipeline-phase-editor-actions {
-    grid-column: span 3;
+    grid-column: span 2;
   }
 
   .pipeline-phase-editor-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -2262,6 +2262,10 @@ h1 {
   .pipeline-phase-editor-top .pipeline-phase-enabled,
   .pipeline-phase-editor-top .pipeline-phase-editor-actions {
     grid-column: auto;
+  }
+
+  .pipeline-phase-editor-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -2408,24 +2412,29 @@ h1 {
 .pipeline-phase-editor {
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: var(--surface);
-  padding: 14px;
+  background: linear-gradient(180deg, var(--surface) 0%, color-mix(in srgb, var(--surface) 92%, var(--bg)) 100%);
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
+  box-shadow: var(--shadow);
 }
 
 .pipeline-phase-editor-top {
   display: grid;
-  grid-template-columns: auto minmax(0, 1.2fr) minmax(140px, 0.8fr) minmax(160px, 0.9fr) auto;
-  gap: 10px;
+  grid-template-columns: auto minmax(0, 1.4fr) minmax(150px, 0.8fr) auto;
+  gap: 12px;
   align-items: center;
 }
 
 .pipeline-phase-editor-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg) 72%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
 }
 
 .pipeline-phase-enabled {
@@ -2443,12 +2452,14 @@ h1 {
 .pipeline-phase-editor-actions {
   display: inline-flex;
   gap: 6px;
+  justify-self: end;
 }
 
 .pipeline-phase-field {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
 }
 
 .pipeline-phase-instructions {
@@ -2459,6 +2470,7 @@ h1 {
   margin: 0;
   font-size: 12px;
   color: var(--text-muted);
+  line-height: 1.5;
 }
 
 .pipeline-phase-summary {
@@ -2499,6 +2511,15 @@ h1 {
   flex-direction: column;
   gap: 12px;
   padding: 0 14px 14px;
+}
+
+.pipeline-phase-card {
+  box-shadow: var(--shadow);
+}
+
+.pipeline-output-section,
+.pipeline-run-docs-details {
+  box-shadow: var(--shadow);
 }
 
 .pipeline-output-section > .pipeline-output-header,

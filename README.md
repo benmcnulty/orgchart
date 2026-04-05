@@ -30,17 +30,17 @@ Paper dolls for corporate theater — disposable, interchangeable, surprisingly 
 - **Smart defaults** — selects `gemma4:latest` where available
 - **Persistent** — configuration survives page reloads via localStorage
 
-### Chat & Personas
+### Chat & Agents
 - **Multi-session chat** — multiple concurrent conversations per source
 - **Thinking visibility** — inline `<think>` / `<thought>` reasoning traces,
   collapsible per message
-- **Personas** — save system instruction sets; draft with AI assistance
+- **Agents** — save system instruction sets; draft with AI assistance
 - **File attachments** — text, markdown, and image support
 - **Context compression** — automatic background summarization when the context
   window fills up
 
 ### Meetings & Orchestration
-- **Group chat** — multiple AI participants with distinct personas
+- **Group chat** — multiple AI participants with distinct agents
 - **Meeting auto-mode** — facilitator routes turns, surfaces consensus and action items
 - **Draft boards** — collaborative iterative document generation
 - **Session snapshots** — full import/export of all in-flight state
@@ -48,7 +48,7 @@ Paper dolls for corporate theater — disposable, interchangeable, surprisingly 
 ### Multiphase Lab
 - **Multi-project workspace** — keep multiple lab projects in a shared sidebar
 - **Editable phase plans** — enable, disable, reorder, and add custom phases
-- **Per-phase personas** — apply saved persona instructions to individual phases
+- **Per-phase agents** — apply saved agent instructions to individual phases
 - **Capacity-aware routing** — phases assigned to sources by hardware tier
 - **Streaming display** — visible output streams cleanly without duplicated reasoning tags
 - **Thinking panels** — full reasoning traces stay available per phase, hidden by default while they stream
@@ -162,7 +162,7 @@ transport error, the runner re-primes that model and retries the phase once.
 │   ├── markdown.js        Safe markdown renderer (no innerHTML)
 │   ├── chat.js            Chat workspace and streaming UI
 │   ├── pipeline.js        Multiphase Lab UI panel
-│   └── app.js             Sources, personas, meetings, and orchestration
+│   └── app.js             Sources, agents, meetings, and orchestration
 ├── tests/                 Bun test suite (prompt policy, parsing, server, pipeline utils)
 └── docs/                  Architecture and testing notes
 ```

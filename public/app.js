@@ -621,7 +621,7 @@ function hydratePersonaEditor() {
     titleEl.value = '';
     descEl.value = '';
     instructionsEl.value = '';
-    setPersonaStatus('Create a persona to draft reusable system instructions.', 'muted');
+    setPersonaStatus('Create an agent to draft reusable system instructions.', 'muted');
     return;
   }
 
@@ -629,7 +629,7 @@ function hydratePersonaEditor() {
   titleEl.value = persona.title;
   descEl.value = persona.description;
   instructionsEl.value = persona.instructions;
-  setPersonaStatus('Saved personas appear in the chat persona selector.', 'muted');
+  setPersonaStatus('Saved agents appear in the chat agent selector.', 'muted');
 }
 
 function renderPersonaList() {
@@ -639,7 +639,7 @@ function renderPersonaList() {
   if (personas.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'persona-list-empty';
-    empty.textContent = 'No personas saved yet.';
+    empty.textContent = 'No agents saved yet.';
     list.replaceChildren(empty);
     return;
   }
@@ -662,7 +662,7 @@ function renderPersonaList() {
     copy.className = 'workspace-item-copy';
     const name = document.createElement('span');
     name.className = 'workspace-item-title';
-    name.textContent = persona.name.trim() || 'Untitled Persona';
+    name.textContent = persona.name.trim() || 'Untitled Agent';
 
     const meta = document.createElement('span');
     meta.className = 'workspace-item-meta';
@@ -710,12 +710,12 @@ function bindPersonaEditor() {
     persona.instructions = instructionsEl.value.trim();
     savePersonas();
     hydratePersonaEditor();
-    setPersonaStatus(`Saved ${persona.name || 'persona'}.`, 'success');
+    setPersonaStatus(`Saved ${persona.name || 'agent'}.`, 'success');
   });
 
   deleteBtn.addEventListener('click', () => {
     deleteActivePersona();
-    setPersonaStatus('Persona removed.', 'muted');
+    setPersonaStatus('Agent removed.', 'muted');
   });
 
   draftBtn.addEventListener('click', draftPersonaInstructions);
@@ -725,14 +725,14 @@ function renderPersonaPanel(body, actionsLeft, actionsRight) {
   const newBtn = document.createElement('button');
   newBtn.id = 'persona-new-btn';
   newBtn.className = 'btn-add';
-  newBtn.title = 'Create persona';
+  newBtn.title = 'Create agent';
   newBtn.textContent = '+';
   actionsRight.appendChild(newBtn);
 
   const navToggle = document.createElement('button');
   navToggle.type = 'button';
   navToggle.className = 'btn-add';
-  navToggle.title = 'Collapse persona list';
+  navToggle.title = 'Collapse agent list';
   navToggle.textContent = '↔';
   navToggle.addEventListener('click', () => {
     uiState.personasNavCollapsed = !uiState.personasNavCollapsed;
@@ -758,17 +758,17 @@ function renderPersonaPanel(body, actionsLeft, actionsRight) {
 
   const heading = document.createElement('h3');
   heading.className = 'persona-heading';
-  heading.textContent = 'Persona Editor';
+  heading.textContent = 'Agent Editor';
 
   const hint = document.createElement('p');
   hint.className = 'persona-hint';
-  hint.textContent = 'Draft concise system instructions from a role, then refine and save them for chat reuse.';
+  hint.textContent = 'Draft concise system instructions from a role, then refine and save them for chat and pipeline reuse.';
   intro.append(heading, hint);
 
   const empty = document.createElement('div');
   empty.id = 'persona-editor-empty';
   empty.className = 'persona-editor-empty';
-  empty.textContent = 'Create a persona to start drafting instructions.';
+  empty.textContent = 'Create an agent to start drafting instructions.';
 
   const form = document.createElement('div');
   form.id = 'persona-editor-form';
@@ -826,7 +826,7 @@ function renderPersonaPanel(body, actionsLeft, actionsRight) {
   instructionsArea.id = 'persona-instructions';
   instructionsArea.className = 'persona-textarea persona-textarea--instructions';
   instructionsArea.rows = 12;
-  instructionsArea.placeholder = 'Saved instructions are sent as the system message when this persona is selected in chat.';
+  instructionsArea.placeholder = 'Saved instructions are sent as the system message when this agent is selected in chat or a pipeline phase.';
   instructionsField.append(instructionsLabel, instructionsArea);
 
   const footer = document.createElement('div');
@@ -852,7 +852,7 @@ function renderPersonaPanel(body, actionsLeft, actionsRight) {
   const saveBtn = document.createElement('button');
   saveBtn.id = 'persona-save-btn';
   saveBtn.className = 'btn-primary';
-  saveBtn.textContent = 'Save Persona';
+  saveBtn.textContent = 'Save Agent';
 
   actionsRow.append(draftBtn, deleteBtn, saveBtn);
   footer.append(status, actionsRow);
@@ -884,7 +884,7 @@ async function draftPersonaInstructions() {
   const persona = ensureActivePersona();
   const source = personaDraftSource();
   if (!source) {
-    setPersonaStatus('Connect an inference source before drafting persona instructions.', 'error');
+    setPersonaStatus('Connect an inference source before drafting agent instructions.', 'error');
     return;
   }
 
@@ -916,7 +916,7 @@ async function draftPersonaInstructions() {
   const messages = workflowMessages({
     sourceModel: source.selectedModel,
     workflow: 'persona_drafting',
-    role: 'You write production-ready system instructions for role-based AI personas.',
+    role: 'You write production-ready system instructions for role-based AI agents.',
     instructions: [
       'Draft concise, practical system instructions.',
       'Use a professional tone and avoid filler.',
@@ -926,7 +926,7 @@ async function draftPersonaInstructions() {
       job_title: title || '(unspecified)',
       brief_description: description || '(unspecified)',
     },
-    input: 'Draft the persona system instructions.',
+    input: 'Draft the agent system instructions.',
     outputFormat: 'Return only the final system instructions.',
     includeThought: true,
   });
@@ -1261,7 +1261,7 @@ function renderGroupParticipantOptions() {
   if (available.length === 0) {
     const opt = document.createElement('option');
     opt.value = '';
-    opt.textContent = personas.length === 0 ? 'Save personas to add participants' : 'All saved personas added';
+    opt.textContent = personas.length === 0 ? 'Save agents to add participants' : 'All saved agents added';
     select.appendChild(opt);
     return;
   }
@@ -1269,7 +1269,7 @@ function renderGroupParticipantOptions() {
   for (const persona of available) {
     const opt = document.createElement('option');
     opt.value = persona.id;
-    opt.textContent = `${persona.name.trim() || 'Untitled Persona'}${persona.title.trim() ? ` • ${persona.title.trim()}` : ''}`;
+    opt.textContent = `${persona.name.trim() || 'Untitled Agent'}${persona.title.trim() ? ` • ${persona.title.trim()}` : ''}`;
     select.appendChild(opt);
   }
 
@@ -1284,7 +1284,7 @@ function renderGroupParticipants() {
   if (meeting.participants.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'group-participants-empty';
-    empty.textContent = 'Add saved personas to this meeting.';
+    empty.textContent = 'Add saved agents to this meeting.';
     wrap.replaceChildren(empty);
     updateGroupChatControls();
     return;
@@ -1297,7 +1297,7 @@ function renderGroupParticipants() {
 
     const label = document.createElement('span');
     label.className = 'group-participant-chip-label';
-    label.textContent = persona?.name?.trim() || 'Untitled Persona';
+    label.textContent = persona?.name?.trim() || 'Untitled Agent';
 
     const remove = document.createElement('button');
     remove.type = 'button';
@@ -2412,7 +2412,7 @@ async function planNextMeetingTurn(meeting, signal) {
 
   const participantLine = raw.match(/PARTICIPANT:\s*(.+)/i)?.[1]?.trim();
   const promptLine = raw.match(/PROMPT:\s*([\s\S]+)/i)?.[1]?.trim();
-  const participant = personas.find(persona => (persona.name.trim() || 'Untitled Persona').toLowerCase() === (participantLine || '').toLowerCase());
+  const participant = personas.find(persona => (persona.name.trim() || 'Untitled Agent').toLowerCase() === (participantLine || '').toLowerCase());
   if (!participant || !meeting.participants.includes(participant.id) || !promptLine) {
     return fallbackFacilitatorPlan(meeting);
   }
@@ -3006,7 +3006,7 @@ function init() {
     body: personaBody,
     actionsLeft: personaActionsLeft,
     actionsRight: personaActionsRight,
-  } = createPanel('panel-persona', 'Persona');
+  } = createPanel('panel-persona', 'Agents');
   document.getElementById('panel-persona-mount').appendChild(personaPanel);
   renderPersonaPanel(personaBody, personaActionsLeft, personaActionsRight);
 

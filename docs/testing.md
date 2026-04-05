@@ -24,7 +24,7 @@ The automated suite focuses on the highest-risk logic that does not require a br
 3. Start the app with `bun run dev`
 4. Manually verify:
    - chat streaming and hidden reasoning panels
-   - persona drafting
+   - agent drafting
    - meeting auto mode
    - draft-board planning/revision
    - import/export snapshot flow

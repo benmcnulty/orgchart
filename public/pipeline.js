@@ -376,12 +376,12 @@ function buildPhaseEditor(project, phase, index) {
   personaSelect.className = 'pipeline-config-select';
   const defaultPersona = document.createElement('option');
   defaultPersona.value = '';
-  defaultPersona.textContent = 'No persona';
+  defaultPersona.textContent = 'No agent';
   personaSelect.appendChild(defaultPersona);
   for (const persona of (typeof personas !== 'undefined' ? personas : [])) {
     const option = document.createElement('option');
     option.value = persona.id;
-    option.textContent = [persona.name, persona.title].filter(Boolean).join(' • ') || 'Untitled Persona';
+    option.textContent = [persona.name, persona.title].filter(Boolean).join(' • ') || 'Untitled Agent';
     option.selected = persona.id === phase.personaId;
     personaSelect.appendChild(option);
   }
@@ -412,7 +412,7 @@ function buildPhaseEditor(project, phase, index) {
   removeBtn.addEventListener('click', () => deletePhase(project, phase.id));
   actionRow.append(upBtn, downBtn, removeBtn);
 
-  topRow.append(enabledLabel, titleInput, typeSelect, personaSelect, actionRow);
+  topRow.append(enabledLabel, titleInput, typeSelect, actionRow);
 
   const configRow = document.createElement('div');
   configRow.className = 'pipeline-phase-editor-grid';
@@ -475,6 +475,7 @@ function buildPhaseEditor(project, phase, index) {
   });
 
   configRow.append(
+    pipelineField('Agent', personaSelect),
     pipelineField('Source', sourceSelect),
     pipelineField('Model', modelSelect),
     pipelineField('Thinking', thinkingToggle),
@@ -1008,14 +1009,14 @@ function pipelineInit(mountEl, panelActions) {
 
   const navToggleBtn = document.createElement('button');
   navToggleBtn.type = 'button';
-  navToggleBtn.className = 'btn-icon';
+  navToggleBtn.className = 'btn-add';
   navToggleBtn.textContent = '↔';
   navToggleBtn.title = 'Collapse or expand project sidebar';
   navToggleBtn.addEventListener('click', togglePipelineNav);
 
   const addProjectBtn = document.createElement('button');
   addProjectBtn.type = 'button';
-  addProjectBtn.className = 'btn-icon';
+  addProjectBtn.className = 'btn-add';
   addProjectBtn.textContent = '+';
   addProjectBtn.title = 'Add project';
   addProjectBtn.addEventListener('click', createPipelineProject);
