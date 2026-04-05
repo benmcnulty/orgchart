@@ -3795,6 +3795,106 @@ h1 {
   flex-wrap: wrap;
 }
 
+/* ─── Projects & Milestones ──────────────────────────────────────────────────── */
+
+.projects-shell {
+  min-height: 560px;
+}
+
+.projects-detail {
+  display: flex;
+  flex-direction: column;
+}
+
+.project-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px 20px 24px;
+}
+
+.project-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.project-deadline-input {
+  font-size: 13px;
+}
+
+/* ─── Milestones ─────────────────────────────────────────────────────────────── */
+
+.project-milestones {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.project-milestones-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.project-milestones-title {
+  margin: 0;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.project-progress-badge {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  background: var(--surface-raised, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 2px 8px;
+}
+
+.milestone-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.milestone-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto 28px;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.milestone-row:last-child {
+  border-bottom: none;
+}
+
+.milestone-name-input {
+  font-size: 13px;
+  min-width: 0;
+}
+
+.milestone-status-select {
+  font-size: 12px;
+  padding: 4px 8px;
+  min-width: 110px;
+}
+
+.milestone-deadline-input {
+  font-size: 12px;
+  padding: 4px 8px;
+  min-width: 130px;
+}
+
 /* ─── Responsive ─────────────────────────────────────────────────────────────── */
 
 @media (max-width: 700px) {

@@ -4,10 +4,12 @@ import { runPipeline } from './lib/pipeline-runner.js';
 import {
   bootstrapOrgChart,
   deleteAgent,
+  deleteProject,
   deleteSkill,
   ensureOrgChartStore,
   buildWikipediaPageUrl,
   extractReadableText,
+  listProjects,
   listTools,
   memoryDelete,
   memoryIndex,
@@ -20,6 +22,7 @@ import {
   writeAgent,
   writeCustomTool,
   writeIntranetDoc,
+  writeProject,
   writeRecord,
   writeSkill,
   writeTool,
@@ -232,6 +235,22 @@ async function handleRecordWrite(req) {
   const body = await readJsonRequest(req);
   if (!body || typeof body !== 'object') return badRequest('Invalid record payload');
   return json({ record: await writeRecord(body) });
+}
+
+async function handleProjectsList() {
+  return json({ projects: await listProjects() });
+}
+
+async function handleProjectUpsert(req) {
+  const body = await readJsonRequest(req);
+  if (!body || typeof body !== 'object') return badRequest('Invalid project payload');
+  return json({ project: await writeProject(body) });
+}
+
+async function handleProjectDelete(id) {
+  if (!id) return badRequest('Missing project id');
+  await deleteProject(id);
+  return json({ ok: true });
 }
 
 async function handleCustomToolsList() {
@@ -529,6 +548,18 @@ export function appFetch(req) {
 
   if (url.pathname === '/api/orgchart/custom-tools/execute' && req.method === 'POST') {
     return handleCustomToolExecute(req);
+  }
+
+  if (url.pathname === '/api/orgchart/projects' && req.method === 'GET') {
+    return handleProjectsList();
+  }
+
+  if (url.pathname === '/api/orgchart/projects' && req.method === 'POST') {
+    return handleProjectUpsert(req);
+  }
+
+  if (url.pathname.startsWith('/api/orgchart/projects/') && req.method === 'DELETE') {
+    return handleProjectDelete(url.pathname.split('/').pop());
   }
 
   if (url.pathname === '/api/orgchart/migrate-agents' && req.method === 'POST') {

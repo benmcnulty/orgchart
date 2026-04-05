@@ -34,6 +34,7 @@
           <div id="panel-tools-mount"></div>
           <div id="panel-management-mount"></div>
           <div id="panel-tasks-mount"></div>
+          <div id="panel-projects-mount"></div>
         </section>
 
         <!-- Records: intranet records section -->
@@ -97,7 +98,8 @@
        14. nav.js               — navigation rail controller, navigateTo(), mountNavigation()
        15. config-flow.js       — guided 10-step configuration checklist
        16. presentation.js      — operations dashboard for Presentation section
-       16. app.js               — panels, calls sourcesInit() + chatInit() + pipelineInit() + mountNavigation() at end of init()
+       17. projects.js          — project & milestone tracking, projectsInit()
+       18. app.js               — panels, calls sourcesInit() + chatInit() + pipelineInit() + mountNavigation() at end of init()
     -->
     <script src="shared.js"></script>
     <script src="markdown.js"></script>
@@ -115,6 +117,7 @@
     <script src="nav.js"></script>
     <script src="config-flow.js"></script>
     <script src="presentation.js"></script>
+    <script src="projects.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

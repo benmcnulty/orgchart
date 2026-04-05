@@ -38,6 +38,7 @@ let uiState = {
   tasksNavCollapsed: false,
   meetingsNavCollapsed: false,
   draftBoardsNavCollapsed: false,
+  projectsNavCollapsed: false,
 };
 // groupChat — extracted to meetings.js
 
@@ -577,6 +578,7 @@ async function init() {
   await bootstrapOrgChartState();
   loadOrganizations();
   loadScheduledTasks();
+  await loadProjects();
   syncGroupParticipantsWithPersonas();
 
   // ── Sources panel ─────────────────────────────────────────────────────────
@@ -679,6 +681,16 @@ async function init() {
   } = createPanel('panel-tasks', 'Tasks');
   document.getElementById('panel-tasks-mount').appendChild(tasksPanel);
   renderTasksPanel(tasksBody, tasksActionsLeft, tasksActionsRight);
+
+  // ── Projects panel ────────────────────────────────────────────────────────
+  const {
+    panel: projectsPanel,
+    body: projectsBody,
+    actionsLeft: projectsActionsLeft,
+    actionsRight: projectsActionsRight,
+  } = createPanel('panel-projects', 'Projects');
+  document.getElementById('panel-projects-mount').appendChild(projectsPanel);
+  projectsInit(projectsBody, projectsActionsLeft, projectsActionsRight);
 
   // Kick off connection attempts for all loaded sources
   for (const source of sources) {
