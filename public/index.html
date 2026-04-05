@@ -61,14 +61,16 @@
         2. markdown.js          — renderMarkdown() global, no dependencies
         3. inference-policy.js  — shared Gemma/Ollama prompt policy helpers
         4. sources.js           — inference source state, CRUD, card rendering
-        5. chat.js              — chat UI, depends on renderMarkdown + app.js globals
-        6. pipeline.js          — multiphase lab UI, depends on renderMarkdown + app.js globals
-        7. app.js               — panels, calls sourcesInit() + chatInit() + pipelineInit() at end of init()
+        5. agents.js            — agent/persona state, CRUD, editor, instruction drafting
+        6. chat.js              — chat UI, depends on renderMarkdown + app.js globals
+        7. pipeline.js          — multiphase lab UI, depends on renderMarkdown + app.js globals
+        8. app.js               — panels, calls sourcesInit() + chatInit() + pipelineInit() at end of init()
     -->
     <script src="shared.js"></script>
     <script src="markdown.js"></script>
     <script src="inference-policy.js"></script>
     <script src="sources.js"></script>
+    <script src="agents.js"></script>
     <script src="chat.js"></script>
     <script src="pipeline.js"></script>
     <script src="app.js"></script>
