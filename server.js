@@ -483,7 +483,21 @@ async function handlePipelineRun(req) {
   });
 }
 
-export function appFetch(req) {
+function isLocalRequest(req, port) {
+  const url = new URL(req.url);
+  if (![ `http://127.0.0.1:${port}`, `http://localhost:${port}` ].includes(url.origin)) return false;
+  const host = req.headers.get('Host');
+  if (host && host !== url.host) return false;
+  const origin = req.headers.get('Origin');
+  if (origin && origin !== url.origin) return false;
+  return req.headers.get('Sec-Fetch-Site') !== 'cross-site';
+}
+
+export function appFetch(req, server) {
+  // Check before disk mutation, tool execution or outbound inference requests.
+  if (!isLocalRequest(req, server?.port ?? PORT)) {
+    return new Response('Forbidden local request', { status: 403 });
+  }
   const url = new URL(req.url);
 
   if (url.pathname === '/api/proxy') {
@@ -585,13 +599,18 @@ export function appFetch(req) {
   return handleStatic(url.pathname);
 }
 
-if (import.meta.main) {
-  await ensureOrgChartStore();
-  const server = Bun.serve({
-    port: PORT,
+export function startServer(port = PORT) {
+  return Bun.serve({
+    hostname: '127.0.0.1',
+    port,
     idleTimeout: 255,
     fetch: appFetch,
   });
+}
+
+if (import.meta.main) {
+  await ensureOrgChartStore();
+  const server = startServer();
 
   console.log(`\n  OrgChart: Paper Dolls for Corporate Theater`);
   console.log(`  → http://localhost:${server.port}\n`);

@@ -7,6 +7,19 @@
 
 ---
 
+## Status and trust boundary
+
+This is an experimental local application with committed tests, not a verified
+production or multi-user service. The feature inventory below describes source
+capabilities; this documentation review did not certify every autonomous flow.
+The server binds to `127.0.0.1`; only local Host values on the serving port and
+matching Origin values are accepted. Foreign/null origins and cross-site browser
+requests are rejected before disk, tool or proxy routes. LAN hosting, reverse
+proxies and cross-origin embeds are not supported. This local boundary is not
+application authentication: trusted local processes can supply matching headers.
+The app exposes mutable disk state and network/tool operations; its proxy does
+not provide endpoint authorization or an inference/tool sandbox.
+
 ## What Is OrgChart?
 
 OrgChart is a zero-dependency local web application that turns a set of local
@@ -25,7 +38,7 @@ Paper dolls for corporate theater — disposable, interchangeable, surprisingly 
 ### Inference Source Management
 - **Multi-source** — add any number of Ollama servers on your LAN
 - **Capacity tiers** — tag each source as Small / Medium / Large; the pipeline
-  routes phases to the most appropriate machine automatically
+  uses explicit phase/source configuration; labels do not measure hardware capacity
 - **Live model listing** — fetches available models on connect; auto-retries on error
 - **Smart defaults** — selects `gemma4:latest` where available
 - **Persistent** — configuration survives page reloads via localStorage
@@ -93,33 +106,34 @@ Paper dolls for corporate theater — disposable, interchangeable, surprisingly 
 bun run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Run from the cloned repository root; no npm package installation or build step
+is declared. Open [http://localhost:3000](http://localhost:3000). `PORT` overrides
+the HTTP port; in PowerShell set `$env:PORT = '4000'` before `bun run dev`.
+Stop the server with Ctrl+C. `bun run start` disables watch mode.
+
+The ignored `.orgchart/` folder holds mutable instance data. Explore in a
+disposable checkout or back up existing state before operations that change it.
+Do not commit private organization records, local endpoints or model input.
 
 Requires [Bun](https://bun.sh) ≥ 1.0 and [Ollama](https://ollama.com) running
-with at least one model pulled (`ollama pull gemma4:latest`).
+with a suitable model already installed. The source's Gemma model identifiers
+are defaults, not proof those names are available on your inference server.
 
 ---
 
 ## Hardware Setup
 
-OrgChart is designed for multi-node LAN inference. Recommended capacity tagging
-for common hardware:
-
-| Machine | VRAM | Tier | Best Models |
-|---|---|---|---|
-| M4 MacBook Pro 32GB | 32 GB unified | **Large** | gemma4:31b, gemma4:26b |
-| HP Victus / RTX 3060 | 16 GB GPU | **Medium** | gemma4:26b (MoE), gemma4:e4b |
-| M2 Mac Mini 8GB | 8 GB unified | **Small** | gemma4:e2b, gemma4:e4b |
-
-Set the capacity tier on each source card after connecting. The Multiphase Lab
-will automatically route the Optimizer and Critic phases to Small/Medium nodes,
-and the Generator and Synthesizer phases to Large/Medium nodes.
+OrgChart supports multiple inference sources, with operator-assigned
+Small/Medium/Large capacity tags. These are routing labels, not measured hardware
+requirements or verified recommendations for a particular GPU. Choose an actually
+installed model that fits each machine and test the intended workload; advertised
+memory, model names and context windows alone do not establish capacity.
 
 For multi-node setups, configure the Ollama node URLs:
 
 ```bash
-OLLAMA_PRIMARY_URL=http://192.168.x.vic:11434 \
-OLLAMA_SECONDARY_URL=http://192.168.x.pav:11434 \
+OLLAMA_PRIMARY_URL=http://ollama-primary.example:11434 \
+OLLAMA_SECONDARY_URL=http://ollama-secondary.example:11434 \
 bun run dev
 ```
 
@@ -267,3 +281,29 @@ MIT © 2026 Ben McNulty — see [LICENSE](LICENSE).
 ---
 
 *OrgChart: Paper Dolls for Corporate Theater*
+
+## Reproducible checks and configuration notes
+
+`bun run test` runs the committed Bun suite. `bun run check` uses the portable
+Node checker in `scripts/check.js`, covering the same browser/lib/server sources.
+Node.js is needed for syntax checks; no npm dependencies are installed. On
+PowerShell, the equivalent explicit check is:
+
+```powershell
+Get-ChildItem public/*.js, lib/*.js, server.js | ForEach-Object { node --check $_.FullName; if ($LASTEXITCODE) { throw 'Syntax check failed' } }
+```
+
+`PORT` controls HTTP serving. `OLLAMA_PRIMARY_URL` defaults to
+`http://localhost:11434`; `OLLAMA_SECONDARY_URL` defaults to the primary URL.
+[`config/ollama-nodes.js`](config/ollama-nodes.js) routes optimizer/critic phases
+to secondary and generator/synthesizer phases to primary unless a phase supplies
+its own source URL. Browser source selections also use the server proxy.
+Configured endpoints receive inference inputs; built-in research tools can make
+external network requests. No credential or privacy guarantee follows from
+calling the app local.
+
+Read [AGENTS.md](AGENTS.md) and include actual automated and browser evidence
+with changes. The 2026-10-02 candidate passed all 49 Bun tests and the 23-file Node
+syntax check on Bun 1.4.2/Node 24, without live inference or built-in network
+tools. Full browser/UI/manual autonomous-flow checks
+remain unverified. Preserve the [MIT license](LICENSE) and existing source attribution.

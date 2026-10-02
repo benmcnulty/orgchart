@@ -15,6 +15,7 @@ The automated suite focuses on the highest-risk logic that does not require a br
 - structured `<thought>` / `<think>` parsing
 - chat parser handling for streamed reasoning tags
 - server-side proxy and stream payload validation
+- loopback listener plus foreign Host/Origin and cross-site request rejection before privileged routing
 - `.orgchart` markdown/config parsing and memory sandbox path rules
 - intranet document persistence and custom-tool registry validation rules
 - multiphase pipeline primer deduplication, parallel warm-up scheduling, timeout retry policy, and split thinking/output stream handling
@@ -46,3 +47,7 @@ The next layer of test investment should be browser automation for:
 - setup-step interactions and readiness gating
 - workflow and resources responsive layouts
 - meeting/draft-board responsive layouts
+
+## Local transport regression boundary
+
+`tests/local-boundary.test.js` checks real local HTTP serving and hostile request rejection. It uses an ephemeral port, closes the listener, and does not submit inference, disk mutations or tool execution. Matching headers from trusted native local processes remain allowed; this is not application authentication or a network-hosting mode. Candidate CI performs syntax/tests with read-only repository permissions and no deployment step. Browser and live-model checks above remain a separate manual acceptance task.
