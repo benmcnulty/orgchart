@@ -37,3 +37,13 @@ test('actual Bun listener is loopback-only and enforces the same boundary', asyn
   expect((await fetch(local, { headers: { Host: 'attacker.example' } })).status).toBe(403);
   expect((await fetch(local, { headers: { Origin: 'null' } })).status).toBe(403);
 });
+
+// URL serialization removes the default port; no privileged listener is needed.
+test('documented port80 accepts normalized local origins', async () => {
+  for (const hostname of ['127.0.0.1', 'localhost']) {
+    const normalized = `http://${hostname}`;
+    const request = new Request(`${normalized}:80/`, { headers: { Origin: normalized } });
+    expect((await app.appFetch(request, { port: 80 })).status).toBe(200);
+  }
+  expect((await app.appFetch(new Request('http://127.0.0.1:81/'), { port: 80 })).status).toBe(403);
+});

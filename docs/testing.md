@@ -51,3 +51,5 @@ The next layer of test investment should be browser automation for:
 ## Local transport regression boundary
 
 `tests/local-boundary.test.js` checks real local HTTP serving and hostile request rejection. It uses an ephemeral port, closes the listener, and does not submit inference, disk mutations or tool execution. Matching headers from trusted native local processes remain allowed; this is not application authentication or a network-hosting mode. Candidate CI performs syntax/tests with read-only repository permissions and no deployment step. Browser and live-model checks above remain a separate manual acceptance task.
+
+The follow-up includes a default HTTP port regression without binding port 80 and fake-secret diagnostics tests. Stream target diagnostics omit URL userinfo/path/query; network exception messages are generic and logged error classes are bounded. These checks are not a full privacy or outbound-network audit.

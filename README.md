@@ -18,7 +18,9 @@ requests are rejected before disk, tool or proxy routes. LAN hosting, reverse
 proxies and cross-origin embeds are not supported. This local boundary is not
 application authentication: trusted local processes can supply matching headers.
 The app exposes mutable disk state and network/tool operations; its proxy does
-not provide endpoint authorization or an inference/tool sandbox.
+not provide endpoint authorization or an inference/tool sandbox. Outbound
+redirect/destination and request-cancellation behavior are not certified by this
+inbound transport repair.
 
 ## What Is OrgChart?
 
@@ -303,7 +305,7 @@ external network requests. No credential or privacy guarantee follows from
 calling the app local.
 
 Read [AGENTS.md](AGENTS.md) and include actual automated and browser evidence
-with changes. The 2026-10-02 candidate passed all 49 Bun tests and the 23-file Node
+with changes. The 2026-10-02 candidate passed all 52 Bun tests and the 23-file Node
 syntax check on Bun 1.4.2/Node 24, without live inference or built-in network
 tools. Full browser/UI/manual autonomous-flow checks
 remain unverified. Preserve the [MIT license](LICENSE) and existing source attribution.
