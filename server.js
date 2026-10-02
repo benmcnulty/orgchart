@@ -66,7 +66,17 @@ export function validateStreamPayload(body) {
 function logStreamEvent(id, stage, meta = {}) {
   const detail = Object.entries(meta)
     .filter(([, value]) => value !== undefined && value !== null && value !== '')
-    .map(([key, value]) => `${key}=${String(value).replace(/\s+/g, ' ')}`)
+    .map(([key, value]) => {
+      // Target paths/query/userinfo may contain credentials or signed values.
+      if (key === 'target') {
+        try { return `target=${new URL(value).origin}`; } catch { return 'target=unavailable'; }
+      }
+      if (key === 'error') {
+        const safeNames = ['TypeError', 'TimeoutError', 'AbortError'];
+        return `error=${safeNames.includes(value) ? value : 'UpstreamError'}`;
+      }
+      return `${key}=${String(value).replace(/\s+/g, ' ')}`;
+    })
     .join(' ');
   console.log(`[stream ${id}] ${stage}${detail ? ` ${detail}` : ''}`);
 }
@@ -88,7 +98,7 @@ async function handleProxy(url) {
     const data = await response.json();
     return json(data, response.status);
   } catch (err) {
-    const message = err.name === 'TimeoutError' ? 'Connection timed out' : err.message;
+    const message = err.name === 'TimeoutError' ? 'Connection timed out' : 'Upstream request failed';
     return json({ error: message }, 502);
   }
 }
@@ -136,8 +146,8 @@ async function handleStream(req, url) {
     logStreamEvent(requestId, 'streaming', { duration_ms: Date.now() - startedAt });
     return response;
   } catch (err) {
-    const message = err.name === 'TimeoutError' ? 'Connection timed out' : err.message;
-    logStreamEvent(requestId, 'failed', { error: message, duration_ms: Date.now() - startedAt });
+    const message = err.name === 'TimeoutError' ? 'Connection timed out' : 'Upstream request failed';
+    logStreamEvent(requestId, 'failed', { error: err.name, duration_ms: Date.now() - startedAt });
     return json({ error: message }, 502);
   }
 }
@@ -483,7 +493,22 @@ async function handlePipelineRun(req) {
   });
 }
 
-export function appFetch(req) {
+function isLocalRequest(req, port) {
+  const url = new URL(req.url);
+  const allowedOrigins = ['127.0.0.1', 'localhost'].map(hostname => new URL(`http://${hostname}:${port}`).origin);
+  if (!allowedOrigins.includes(url.origin)) return false;
+  const host = req.headers.get('Host');
+  if (host && host !== url.host) return false;
+  const origin = req.headers.get('Origin');
+  if (origin && origin !== url.origin) return false;
+  return req.headers.get('Sec-Fetch-Site') !== 'cross-site';
+}
+
+export function appFetch(req, server) {
+  // Check before disk mutation, tool execution or outbound inference requests.
+  if (!isLocalRequest(req, server?.port ?? PORT)) {
+    return new Response('Forbidden local request', { status: 403 });
+  }
   const url = new URL(req.url);
 
   if (url.pathname === '/api/proxy') {
@@ -585,13 +610,18 @@ export function appFetch(req) {
   return handleStatic(url.pathname);
 }
 
-if (import.meta.main) {
-  await ensureOrgChartStore();
-  const server = Bun.serve({
-    port: PORT,
+export function startServer(port = PORT) {
+  return Bun.serve({
+    hostname: '127.0.0.1',
+    port,
     idleTimeout: 255,
     fetch: appFetch,
   });
+}
+
+if (import.meta.main) {
+  await ensureOrgChartStore();
+  const server = startServer();
 
   console.log(`\n  OrgChart: Paper Dolls for Corporate Theater`);
   console.log(`  → http://localhost:${server.port}\n`);

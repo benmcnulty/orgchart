@@ -6,7 +6,7 @@
   "scripts": {
     "start": "bun server.js",
     "dev": "bun --watch server.js",
-    "check": "for f in public/*.js lib/*.js server.js; do node --check \"$f\"; done",
+    "check": "node scripts/check.js",
     "test": "bun test",
     "test:unit": "bun test"
   },
